@@ -1,6 +1,7 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
-namespace SharpCalc;
+
+namespace SharpCalc.DataModels;
 /// <summary>
 /// used instead of <see cref="string.Substring(int, int)"/> to avoid unneccesary character copying
 /// </summary>
@@ -9,7 +10,7 @@ public struct StringSegment : IComparable<StringSegment>
     public string Value;
     int Start;
     int End;
-    public char this[int index]
+    public readonly char this[int index]
     {
         get
         {
@@ -20,9 +21,9 @@ public struct StringSegment : IComparable<StringSegment>
     public int Length => Math.Min(Value.Length, End) - Start;
     public StringSegment(string val, int start, int end)
     {
-        this.Value = val;
-        this.Start = start;
-        this.End = end;
+        Value = val;
+        Start = start;
+        End = end;
     }
     public StringSegment Sub(int startindex, int length)
     {
@@ -34,12 +35,12 @@ public struct StringSegment : IComparable<StringSegment>
     }
 
     public int CompareTo(StringSegment other)
-    {     
-        var compareIntersect = string.Compare(this.Value, this.Start, other.Value, other.Start,Math.Min(this.Length,other.Length));
+    {
+        var compareIntersect = string.Compare(Value, Start, other.Value, other.Start, Math.Min(Length, other.Length));
 
         if (compareIntersect == 0)
         {
-            return this.Length.CompareTo(other.Length);
+            return Length.CompareTo(other.Length);
         }
         else return compareIntersect;
     }
@@ -57,17 +58,17 @@ public struct StringSegment : IComparable<StringSegment>
 }
 public enum Symbol
 {
-    Null, Plus, Minus, Cross, Slash, Equal, Assign, Greater, GreaterOrEqual, Smaller, SmallerOrEqual, NonEqual,  Power, Comma, Point, ExclamationMark,
+    Null, Plus, Minus, Cross, Slash, Equal, Assign, Greater, GreaterOrEqual, Smaller, SmallerOrEqual, NonEqual, Power, Comma, Point, ExclamationMark,
     Invisible_FunctionCall
 }
 public static class SymbolIO
 {
     private static readonly string[] Out =
     {
-        String.Empty,"+","-","*","/","==","=",">",">=","<","<=","!=","^",",",".","!",String.Empty
+        string.Empty,"+","-","*","/","==","=",">",">=","<","<=","!=","^",",",".","!",string.Empty
     };
 
-    private static readonly SortedDictionary<StringSegment,Symbol> In = new()
+    private static readonly SortedDictionary<StringSegment, Symbol> In = new()
     {
         { "+",Symbol.Plus },
         { "-",Symbol.Minus },

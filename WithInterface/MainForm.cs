@@ -1,4 +1,5 @@
-using SharpCalc;
+using SharpCalc.Components;
+using SharpCalc.DataModels;
 using System.Text;
 #pragma warning disable IDE1006 // Naming Styles
 namespace WithInterface
@@ -16,9 +17,9 @@ namespace WithInterface
                 {
                     builder.Append(model.Name);
                 }
-                else if (item is SharpCalc.Symbol symbol)
+                else if (item is Symbol symbol)
                 {
-                    builder.Append(SharpCalc.SymbolIO.Represent(symbol));
+                    builder.Append(SymbolIO.Represent(symbol));
                 }
                 else if (item is double num)
                 {
@@ -35,16 +36,16 @@ namespace WithInterface
         }
         void InitializeTags()
         {
-            btnPower.Tag = SharpCalc.Symbol.Power;
-            btnMinus.Tag = SharpCalc.Symbol.Minus;
-            btnPlus.Tag = SharpCalc.Symbol.Plus;
-            btnMultiply.Tag = SharpCalc.Symbol.Cross;
-            btnDivide.Tag = SharpCalc.Symbol.Slash;
-            btnAbs.Tag = SharpCalc.StaticData.AbsoluteValue;
-            btnCeil.Tag = SharpCalc.StaticData.Ceiling;
-            btnFloor.Tag = SharpCalc.StaticData.Floor;
-            btnSqrt.Tag = SharpCalc.StaticData.SquareRoot;
-            btnDeg.Tag = SharpCalc.StaticData.Degree;
+            btnPower.Tag = Symbol.Power;
+            btnMinus.Tag = Symbol.Minus;
+            btnPlus.Tag = Symbol.Plus;
+            btnMultiply.Tag = Symbol.Cross;
+            btnDivide.Tag = Symbol.Slash;
+            btnAbs.Tag = StaticDataBank.AbsoluteValue;
+            btnCeil.Tag = StaticDataBank.Ceiling;
+            btnFloor.Tag = StaticDataBank.Floor;
+            btnSqrt.Tag = StaticDataBank.SquareRoot;
+            btnDeg.Tag = StaticDataBank.Degree;
         }
         void UpdateInterface(bool redrawExpression)
         {
@@ -70,10 +71,11 @@ namespace WithInterface
         {
             EmptyNumber();
             txtExpression.Text = String.Empty;
-            var result = SharpCalc.Translator.SolveExternal(expression);
+            var result = Classifier.SolveExternal(expression);
             txtNumber.Text = result.ToText();
             expression.Clear();
             layers.Clear();
+            layers.Push(expression);
         }
         private void btnDigit_Click(object sender, EventArgs e)
         {
@@ -118,7 +120,7 @@ namespace WithInterface
             EmptyNumber();
             var current = layers.Peek();
             current.AddLast(btn.Tag);
-            current.AddLast(SharpCalc.Symbol.Invisible_FunctionCall);          
+            current.AddLast(Symbol.Invisible_FunctionCall);          
             
             btnBracketOpen_Click(this,EventArgs.Empty);
             

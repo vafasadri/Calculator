@@ -1,61 +1,51 @@
-﻿using SharpCalc.DataModels;
-using System.Diagnostics;
-using System.Security.Cryptography.X509Certificates;
+﻿using SharpCalc.Components;
+using SharpCalc.DataModels;
 
 namespace SharpCalc.Operators
 {
-    internal class FunctionCall : IOperator
+    internal class FunctionCall : SingleOperatorBase
     {
-        public static readonly SingleOperatorMetadata Metadata = SingleOperatorMetadata.Register
-        (
-           "Function Call", -1,
-            (left, right) => new FunctionCall((IFunction)left, right)
+        public static readonly SingleOperatorMetadata MetadataValue = new(
+           "Function Call",
+           -1,
+            (left, right) => new FunctionCall((IFunction)left,right),
+            Array.Empty<ISimplification>()
         );
-        internal readonly IFunction Function;
-        internal readonly Word Parameter;
-        OperatorMetadata IOperator.Metadata => Metadata;
-
-        Word? Call(Word Parameter)
+        private IFunction Function => (IFunction)Left!;
+        private IMathNode Parameter => Right!;
+        public override SingleOperatorMetadata Metadata => MetadataValue;
+        static IReadOnlyList<IMathNode> UnpackTuple(IMathNode word)
         {
-            IReadOnlyList<Word> paramReady;        
-           
-            if (Parameter is Tuple parameters)
+            if (word is Tuple tuple)
             {
-
-                paramReady = parameters.Content;
+                return tuple.Factors;
             }
-            else
-            {
-                paramReady = new Word[] { Parameter };
-            }
-            return Function.TryRun(paramReady);
+            else return new IMathNode[] { word };
         }
-        public string ToText()
+        public override Real? Simplify()
+        {
+            var x = Parameter.TrySimplify(out _);
+            return Function.TryRun( UnpackTuple(x)) ?? base.Simplify();
+        }
+        public override string ToText()
         {
             return $"{Function.Name}({Parameter.ToText()})";
         }
-        public Word? Simplify()
+
+        public override Real Differentiate()
         {
-            var simpparam = Parameter.SuperSimplify(out bool simplified);            
-            var ret = Call(Parameter.SuperSimplify(out _));
-            if(simplified) ret ??= new FunctionCall(Function, simpparam);
-            return ret;
+            if (Function.ParameterCount > 1) throw new NotImplementedException();
+            return Function.Differentiate((Real) UnpackTuple(Parameter)[0]);
         }
 
-        void Word.FindX(VariableLocator locator)
+        public override Real Reverse(Real factor, Real target)
         {
-            locator.Path.Push(this);
-            Parameter.FindX(locator);
-            if (locator.variable == null) locator.Path.Pop();
-            
+            return Function.Reverse(factor, target, UnpackTuple(Parameter));           
         }
 
-        public FunctionCall(IFunction head, Word parameter)
-        {
-            Function = head;
-            this.Parameter = parameter;
-        }     
+        public FunctionCall(IFunction head, IMathNode parameter) : base(head, parameter) { }
     }
 
+    
 }
 

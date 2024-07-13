@@ -1,12 +1,15 @@
-﻿namespace SharpCalc.DataModels;
+﻿using SharpCalc.Operators;
 
-internal interface IFunction : Word, IDataModel
+namespace SharpCalc.DataModels;
+
+internal interface IFunction : IMathNode, IDataModel
 {
-
-    string Word.TypeName => "Function";
+    string IMathNode.TypeName => "Function";
     public int ParameterCount { get; }
-    public Word Run(IReadOnlyList<Word> paramlist);
-    public Word? TryRun(IReadOnlyList<Word> paramlist);
-    string Word.ToText() => Name;
-    Word? Word.Simplify() => null;    
+    public Real Run(IReadOnlyList<IMathNode> paramlist);
+    public Real? TryRun(IReadOnlyList<IMathNode> paramlist);
+    public Real Differentiate(Real parameter);
+    public Real Reverse(Real factor, Real target,IReadOnlyList<IMathNode> paramlist);
+
+    
 }

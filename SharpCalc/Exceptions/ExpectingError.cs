@@ -1,16 +1,18 @@
-﻿namespace SharpCalc.Exceptions
+﻿using SharpCalc.DataModels;
+
+namespace SharpCalc.Exceptions
 {
     internal class ExpectingError : ApplicationException
     {
-        string what;
-        string where;
-        Word? provided;
-        public override string Message => $"Expected {what} {where}, '{(provided == null ? "Nothing" : provided.TypeName)}' provided";
-        public ExpectingError(string What, string Where, Word? Provided)
+        readonly string What;
+        readonly string Where;
+        readonly IMathNode? Provided;
+        public override string Message => $"Expected {What} {Where}, '{(Provided == null ? "Nothing" : Provided.TypeName)}' provided";
+        public ExpectingError(string what, string where, IMathNode? provided)
         {
-            what = What;
-            where = Where;
-            provided = Provided;
+            this.What = what;
+            this.Where = where;
+            this.Provided = provided;
         }
     }
 }

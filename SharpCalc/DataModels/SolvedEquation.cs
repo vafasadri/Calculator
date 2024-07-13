@@ -1,21 +1,27 @@
 ﻿using System.Diagnostics;
 using System.Text;
-using static SharpCalc.Operators.Equation;
+using SharpCalc.Components;
+//using static SharpCalc.Equations.Equation;
 
 namespace SharpCalc.DataModels
 {
-    internal class SolvedEquation : Word
+    internal enum AddResult
+    {
+        Exists,Conflicts,Added
+    }
+    internal class SolvedEquation : IMathNode
     {
         public string TypeName => "Solved Equation";
-        internal Variable Variable { get; private set; }
-        internal List<Word>? Equivalents = null;
-        internal double? NumberValue { get; private set; }
+        internal Variable Variable { get; private set; }        
+        internal List<Real>? Equivalents = null;
+        internal Complex? NumberValue { get; private set; }
+
         public string ToText()
         {
             StringBuilder builder = new();
             builder.Append(Variable.ToText());
             builder.Append(" = ");
-            if(Equivalents != null)
+            if (Equivalents != null)
             {
                 foreach (var item in Equivalents)
                 {
@@ -31,9 +37,7 @@ namespace SharpCalc.DataModels
             else builder.Remove(builder.Length - 3, 3);
             return builder.ToString();
         }
-        void Word.FindX(VariableLocator locator) => throw new Exceptions.EquationChildError();
-        Word? Word.Simplify() => null;
-        public AddResult AddValue(Word value)
+        public AddResult AddValue(Real value)
         {
             if (value is Number n)
             {
@@ -54,12 +58,12 @@ namespace SharpCalc.DataModels
                 return AddResult.Added;
             }
         }
-        public bool Contains(Word word)
+        public bool Contains(Real word)
         {
             if (word is Number n) return NumberValue.HasValue && n.Value == NumberValue.Value;
             return Equivalents != null && Equivalents.Contains(word, Equator.Instance);
         }
-        public SolvedEquation(Variable variable, Word word)
+        public SolvedEquation(Variable variable, Real word)
         {
             Debug.Assert(variable.Equation == null);
             variable.Equation = this;

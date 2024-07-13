@@ -1,204 +1,171 @@
-﻿using SharpCalc.DataModels;
-using System.Reflection;
-using System.Runtime.CompilerServices;
+﻿using SharpCalc.Components;
+using SharpCalc.DataModels;
+using System.Diagnostics.Tracing;
 using System.Text;
 
-namespace SharpCalc.Operators.Arithmetic
+namespace SharpCalc.Operators.Arithmetic;
+internal class Add : OperatorGroupBase
 {
-    internal class Add :  IOperatorGroup,IArithmeticOperator
+    public readonly static OperatorGroupMetadata MetadataValue = new(
+        "Addition", 3,
+        () => new Add(),
+        (factors) => new Add(factors.Cast<Real>()),
+        new ISimplification[]
+        {
+            new AddNumberNumber(),
+            new AddNumberWord(),
+            new AddWordWord(),
+            new AddMultiplyWord(),
+            new AddMultiplyMultiply(),
+            new AddWordAdd()
+        },
+        new Number(0),
+        new Number(0),
+        true
+    );
+    public override OperatorGroupMetadata Metadata => MetadataValue;
+    public override string ToText()
     {
-        public readonly static OperatorGroupMetadata Metadata = OperatorGroupMetadata.Register(
-            "Addition", 3,
-            () => new Add(),
-            true
-        );
-        internal double NumberFactor;
-        private List<Word>? factors;
-        internal IReadOnlyList<Word>? Factors => factors;      
-        OperatorGroupMetadata IOperatorGroup.Metadata => Metadata;
-
-        public bool IsSealed { get; private set; }
-
-        public string ToText()
+        StringBuilder builder = new();
+        bool IsFirst = true;
+        foreach (var item in Factors)
         {
-            if (factors == null) return NumberFactor.ToString();
-            StringBuilder builder = new();
-            bool IsFirst = true;
-            foreach (var item in factors)
+            var factor = WrapMember((Real)item);
+            if (!IsFirst && !factor.StartsWith('-'))
             {
-                if (item is Multiply m && m.NumberFactor < 0)
-                {
-                    if (IsFirst) builder.Append("-");
-                    else builder.Append(" - ");
-                    var pos = Negative.Create(m).SuperSimplify(out _);
-                    builder.Append(this.OpAwarePrint(pos));
-                }
-                else
-                {
-                    var f = item.SuperSimplify(out _);
-                    if (!IsFirst) builder.Append(" + ");
-                    builder.Append(this.OpAwarePrint(f));                  
-                }
-                IsFirst = false;
+                builder.Append(" + ");
             }
-            if (NumberFactor != 0)
+            else if (!IsFirst)
             {
-                builder.Append(NumberFactor < 0 ? " - " : " + ");
-                builder.Append(Math.Abs(NumberFactor));
+                builder.Append(" - ");
+                factor = factor.TrimStart(' ', '-');
             }
-            return builder.ToString();
+            builder.Append(factor);
+            IsFirst = false;
         }
-        public Word? Simplify()
+        return builder.ToString();
+    }
+    public override IMathNode Convert(IMathNode word, Symbol symbol)
+    {
+        return symbol switch
         {
-            if (factors == null)
-            {
-                return new Number(NumberFactor);
-            }
-            else if (factors.Count == 1 && NumberFactor == 0)
-            {
-                return factors[0];
-            }
+            Symbol.Null => word,
+            Symbol.Plus => word,
+            Symbol.Minus => Negative.Create((Real)word),
+            _ => throw new Exception()
+        };
+    }
 
-            bool simplified = Utilities.SimplifyAny(factors, out Word[] r);
-            if (simplified) return new Add(r.Append(new Number(NumberFactor)));
-            else return null;
-        }
+    public override Real Differentiate()
+    {
+        return new Add(Factors?.Select(n => ((Real)n).Differentiate()) ?? Enumerable.Empty<Real>());
+    }
 
-        void Word.FindX(VariableLocator locator)
+    public override Real Reverse(Real factor, Real target)
+    {
+        var allbutFactor = Factors.Exclude(Enumerable.Repeat(factor, 1)).Cast<Real>();
+        var negAll = allbutFactor.Select(Negative.Create);
+        return new Add(negAll.Append(target));
+    }
+    public Add(IEnumerable<Real> words) : base(words) { }
+    public Add(params Real[] words) : base(words) { }
+    public Add() : base() { }
+    static double rate(Real target)
+    {
+        if (target is Proxy)
         {
-            throw new NotImplementedException();
-            //locator.Path.Push(this);
-            //Utilities.IterateFactors(locator, factors?.Select(n => n.));
-            //if (locator.variable == null) locator.Path.Pop();
+            return 0;
         }
-        void InternalAdd(Word item)
-        {
-            if (factors != null)
-                for (int i = 0; i < factors!.Count; i++)
-                {
-                    bool simplified = true;
-                    var eq = Equator.Instance;
-                    Word? MergeFactor(Word left, Word right)
-                    {
-                        if (left is Multiply { Factors: not null } m && m.Factors.Contains(right, eq))
-                        {
-                            if (m.Factors.Count == 1)
-                            {
-                                // 2x + x = 3x
-                                if (m.IsSealed)
-                                {
-                                    return new Multiply(new Number(m.NumberFactor + 1), right);
-                                }
-                                else m.NumberFactor += 1;
-                            }
-                            else
-                            {
-                                var others = m.Factors.Where(n => eq.Equals(n, right)).Append(new Number(m.NumberFactor));
-                                var final = others.Append(new Add(right, new Number(1)));
-                                return new Multiply(final);
-                            }
-                            return left;
-                        }
-                        return null;
-                    }
-                    Word factor = factors[i];
-                    Word? temp;                    
-                    if (eq.Equals(factor, item))
-                    {
-                        Multiply m2 = new();
-                        m2.AddOperand(new Number(2));
-                        m2.AddOperand(factor);
-                        factors[i] = m2;
-                    }
-                    else if ((temp = MergeFactor(item, factor)) != null)
-                    {
-                        factors[i] = temp;
-                    }
-                    else if ((temp = MergeFactor(factor, item)) != null)
-                    {
-                        factors[i] = temp;
-                    }
-                    else if (item is Multiply { Factors: not null } fi && factor is Multiply { Factors: not null } ff)
-                    {
-                        var intersect = fi.Factors.Where(n => ff.Factors.Contains(n,eq)).ToList();
-                        if (intersect.Any())
-                        {
-                            
-                            var fmul = new Multiply(ff.Factors.Where(n => !intersect.Contains(n,eq)).Append(new Number(ff.NumberFactor))).SuperSimplify(out _);
-                            var imul = new Multiply(fi.Factors.Where(n => !intersect.Contains(n,eq)).Append(new Number(fi.NumberFactor))).SuperSimplify(out _);
-                            var add = new Add(fmul, imul).SuperSimplify(out _);                          
-                            factors[i] = new Multiply(intersect.Append(add));
-                        }
-                        else continue;
-                    }
-                    else continue;
+        else if (target is Multiply m && m.IsNegative) return 2;
+        else return 1;
 
-                   return;
-                }
-                
-            factors ??= new();
-            factors.Add(item);
-        }
-        public void AddOperand(Word item)
+    }
+    public override void Seal()
+    {
+        _factors.Sort((left, right) =>
         {
-            if (IsSealed) throw new Exceptions.SealedOperatorException();
-            switch (item)
+            var rl = rate((Real)left);
+            var rr = rate((Real)right);
+            if (rl != rr) return rl.CompareTo(rr);
+
+            if (left is INamed ln && right is INamed rn)
             {
-                case Add add:
-                    if (add.factors != null)
-                    {
-                        foreach (var factor in add.factors)
-                        {
-                            AddOperand(factor);
-                        }
-                    }
-                    NumberFactor += add.NumberFactor;
-                    break;
-                case Number num:
-                    NumberFactor += num.Value;
-                    break;
-                default:
-                    InternalAdd(item);
-                    break;
+                return ln.Name.CompareTo(rn.Name);
             }
-        }
-        public void Seal()
-        {
-            IsSealed = true;           
-            factors?.TrimExcess();            
-        }
-        public Word Convert(Word word, Symbol symbol)
-        {
-            if (symbol == Symbol.Null || symbol == Symbol.Plus)
-            {
-                return word;
-            }
-            else if (symbol == Symbol.Minus) return Negative.Create(word);
-            else throw new Exception();
-        }
-
-        Word IContent.Derivative(Proxy x)
-        {
-            return new Add(factors?.Select(n => ((IContent)n).Derivative(x)) ?? Enumerable.Empty<Word>());
-        }
-
-        public Add(IEnumerable<Word> w)
-        {
-            foreach (var item in w)
-            {
-                AddOperand(item);
-            }
-            Seal();
-        }
-        public Add(params Word[] words) : this(words as IEnumerable<Word>)
+            return 0;
+        });
+        base.Seal();
+    }
+}
+// x + 0 = x
+file class AddNumberWord : IRealSimplification<Number, Real, Add>
+{
+    public Real? Simplify(Number left, Real right)
+    {
+        if (left.Value == 0) return right;
+        else return null;
+    }
+}
+file class AddWordAdd : IRealSimplification<Real, Add, Add>
+{
+    public Real? Simplify(Real left, Add right)
+    {
+        return new Add(right.Factors.Append(left).Cast<Real>());
+    }
+}
+// x + x = 2x
+file class AddWordWord : IRealSimplification<Real, Real, Add>
+{
+    public Real? Simplify(Real left, Real right)
+    {
+        if (Equator.Instance.Equals(left, right))
         {
 
+            var mul = new Multiply(left, new Number(2));
+
+            return mul;
         }
-        public Add()
+        return null;
+    }
+}
+// 2 + 2 = 4
+file class AddNumberNumber : IRealSimplification<Number, Number, Add>
+{
+    public Real? Simplify(Number left, Number right)
+    {
+        return new Number(left.Value + right.Value);
+    }
+}
+// 2x + x = 3x
+file class AddMultiplyWord : IRealSimplification<Multiply, Real, Add>
+{
+    public Real? Simplify(Multiply left, Real right)
+    {
+        if (!left.Factors.Cast<Real>().Contains(right, Equator.Instance)) return null;
+        var once = true;
+        // removing right from left but only once
+        var except = left.Factors.Cast<Real>().Where(n =>
         {
-            NumberFactor = 0;
-            this.factors = null;
-        }
-       
+            if (Equator.Equals(n, right))
+            {
+                var onceBackup = once;
+                once = false;
+                return !onceBackup;
+            }
+            else return true;
+        });
+        return new Multiply(new Add(new Multiply(except), new Number(1)), right);
+    }
+}
+// 2x + yx = x * (2+y)
+file class AddMultiplyMultiply : IRealSimplification<Multiply, Multiply, Add>
+{
+    public Real? Simplify(Multiply left, Multiply right)
+    {
+        var (leftDistinct, intersect, rightDistinct) = left.Factors.Cast<Real>().Intersection<Real>(right.Factors.Cast<Real>(), Equator.Instance);
+        if (!intersect.Any()) return null;
+
+        var add = new Add(new Multiply(leftDistinct), new Multiply(rightDistinct));
+        return new Multiply(intersect.Append(add));
     }
 }

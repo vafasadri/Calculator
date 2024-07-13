@@ -1,26 +1,25 @@
 ﻿using SharpCalc.DataModels;
 using SharpCalc.Operators;
 using SharpCalc.Operators.Arithmetic;
-using System.Collections.Specialized;
 using System.Diagnostics;
 
-namespace SharpCalc;
-public class Translator
+namespace SharpCalc.Components;
+public static class Classifier
 {
     /// <summary>
-    /// a list of math symbols like + or - and their associated Operator object constructors
+    /// a list of math symbols like + or - and their associated Operator object metadata
     /// </summary>
     static readonly SortedDictionary<Symbol, OperatorMetadata> Infos = new()
         {
-            {Symbol.Plus,Add.Metadata },
-            {Symbol.Minus,Add.Metadata },
-            {Symbol.Power,Power.Metadata },
-            {Symbol.Comma, Operators.Tuple.Metadata },
-            {Symbol.Cross,Multiply.Metadata },
-            {Symbol.Assign,Equation.Metadata },
-            {Symbol.Invisible_FunctionCall,FunctionCall.Metadata },
-            {Symbol.Point,Multiply.Metadata },
-            {Symbol.Slash,Multiply.Metadata },
+            {Symbol.Plus,Add.MetadataValue },
+            {Symbol.Minus,Add.MetadataValue },
+            {Symbol.Power,Power.MetadataValue },
+            {Symbol.Comma, Operators.Tuple.MetadataValue },
+            {Symbol.Cross,Multiply.MetadataValue },
+            {Symbol.Assign,Equations.Equation.MetadataValue},
+            {Symbol.Invisible_FunctionCall,FunctionCall.MetadataValue },
+            {Symbol.Point,Multiply.MetadataValue },
+            {Symbol.Slash,Multiply.MetadataValue },
         };
 
     /// converts the symbol on top of the stack into an operator
@@ -32,42 +31,47 @@ public class Translator
         // node containing the symbol       
         var opSymbol = (Symbol)node.Value;
         var info = Infos[opSymbol];
-        var left = (Word?)node.Previous?.Value;
-        var right = (Word?)node.Next?.Value;
-        if (left is IOperatorGroup mr && mr.Metadata == info)
+        var left = node.Previous?.Value as IMathNode;
+        var right = node.Next?.Value as IMathNode;
+        if (info is OperatorGroupMetadata groupInfo)
         {
-            expression.Remove(node.Previous!);
-            expression.Remove(node.Next!);
-            mr.AddOperand(mr.Convert(right!, opSymbol));
-            node.Value = mr;
-        }
-        else if (info is OperatorGroupMetadata minfo)
-        {
-            var multi = minfo.CreateInstance();
-            if (!(minfo.IsLeftOptional && left == null))
+            // add an operand to the previous operator
+            if (left is OperatorGroupBase{IsSealed:false } opGroup && opGroup.Metadata == groupInfo)
             {
-                if (left is IOperatorGroup lmulti) lmulti.Seal();
                 expression.Remove(node.Previous!);
-                multi.AddOperand(left!);
+                expression.Remove(node.Next!);
+                opGroup.AddOperand(opGroup.Convert(right!, opSymbol));
+                node.Value = opGroup;
             }
-            if (right is IOperatorGroup rmulti) rmulti.Seal();
-            multi.AddOperand(multi.Convert(right!, opSymbol));
-            expression.Remove(node.Next!);
-            node.Value = multi;
-        }
-        else if (info is SingleOperatorMetadata sInfo)
-        {
-            if (sInfo.AssociatesLeft)
+            // create a new operator
+            else
             {
-                if (left is IOperatorGroup lmulti) lmulti.Seal();
+                var multi = groupInfo.CreateInstance();
+                if (!groupInfo.IsLeftOptional || left != null)
+                {
+                    if (left is OperatorGroupBase lmulti) lmulti.Seal();
+                    expression.Remove(node.Previous!);
+                    multi.AddOperand(left!);
+                }
+                if (right is OperatorGroupBase rmulti) rmulti.Seal();
+                multi.AddOperand(multi.Convert(right!, opSymbol));
+                expression.Remove(node.Next!);
+                node.Value = multi;
+            }
+        }
+        else if (info is SingleOperatorMetadata singleInfo)
+        {
+            if (singleInfo.AssociatesLeft)
+            {
+                if (left is OperatorGroupBase lmulti) lmulti.Seal();
                 expression.Remove(node.Previous!);
             }
-            if (sInfo.AssociatesRight)
+            if (singleInfo.AssociatesRight)
             {
-                if (right is IOperatorGroup rmulti) rmulti.Seal();
+                if (right is OperatorGroupBase rmulti) rmulti.Seal();
                 expression.Remove(node.Next!);
             }
-            node.Value = sInfo.CreateInstance(left, right);
+            node.Value = singleInfo.CreateInstance(left, right);
         }
     }
 
@@ -89,11 +93,11 @@ public class Translator
         return false;
     }
     /// <summary>
-    /// converts series of objects into a <see cref="Word"/>
+    /// converts series of lexical tokens into a <see cref="IMathNode"/>
     /// </summary>    
-    /// <param name="data">the data bank to search for variables</param>
+    /// <param name="data">the data bank to search for names</param>
     /// <param name="parameters">a list of function parameters to replace occurences of its name with, used when classifying a function body</param>
-    internal static Word Classify(LinkedList<object> series, DataBank? data, IEnumerable<RuntimeFunction.Parameter>? parameters)
+    internal static IMathNode Classify(LinkedList<object> series, DataBank? data, IEnumerable<RuntimeFunction.Parameter>? parameters)
     {
         Stack<LinkedListNode<object>> opStack = new();
         for (var node = series.First; node != null; node = node.Next)
@@ -145,13 +149,15 @@ public class Translator
             if (Infos[(Symbol)top.Value].IsEquational && opStack.Count > 0) throw new Exceptions.EquationChildError();
             CombineNode(series, top);
         }
-        Debug.Assert(series.Count == 1);     
-        return (Word)series.First.Value;
+        Debug.Assert(series.Count == 1);
+        if (series.First.Value is OperatorGroupBase opg) opg.Seal();
+        return (IMathNode)series.First.Value;
     }
 
-    public static Word SolveExternal(LinkedList<object> x)
+    public static IMathNode SolveExternal(LinkedList<object> x)
     {
-        return Classify(x, null, null).SuperSimplify(out _);
+        var s = Classify(x, null, null);
+        return s.TrySimplify(out _);
     }
 }
 

@@ -2,7 +2,7 @@
 using System.Collections;
 using System.Reflection.Metadata.Ecma335;
 
-namespace SharpCalc;
+namespace SharpCalc.Components;
 
 readonly struct ShallowName : INamed
 {
@@ -66,13 +66,15 @@ internal class DataBank : IReadonlyDataBank
     {
         Variable newab = new(name.Name);
         items.Add(newab);
+        var d = newab.Differential = new Differential(newab);
+        items.Add(d);
         return newab;
     }
     public bool AddData(IDataModel data)
     {
 
         return items.Add(data);
-                  
+
     }
 
     bool IReadonlyDataBank.ContainsName(string name)
@@ -93,11 +95,14 @@ internal class DataBank : IReadonlyDataBank
     {
         return items.GetEnumerator();
     }
-
+    public void Remove(string name)
+    {
+        items.Remove(new ShallowName(name));
+    }
     // clone constructor
     public DataBank()
     {
-        items = new(StaticData.DataBank, equator);
+        items = new(StaticDataBank.DataBank, equator);
     }
 }
 

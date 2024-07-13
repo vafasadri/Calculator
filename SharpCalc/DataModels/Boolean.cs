@@ -1,19 +1,18 @@
 ﻿namespace SharpCalc.DataModels
 {
-    internal record struct Boolean : Word
+    internal readonly record struct Boolean : Real
     {
         internal bool Value { get; }
-        string Word.TypeName => "Boolean";
-
-        string Word.ToText()
+        string IMathNode.TypeName => "Boolean";
+        string IMathNode.ToText()
         {
             return Value.ToString();
         }
-        Word? Word.Simplify()
-        {
-            return null;
-        }
-        void Word.FindX(VariableLocator locator) => throw new Exceptions.EquationChildError();      
+        Real Real.Differentiate() => null;
+        void Real.EnumerateVariables(ISet<Proxy> variables) { }
+        Real? Real.Simplify() => null;
+        bool Real.ContainsVariable(Proxy variable) => throw new NotImplementedException();
+
         public Boolean(bool value)
         {
             Value = value;

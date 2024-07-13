@@ -10,7 +10,7 @@ namespace SharpCalc.DataModels
     internal class VariableLocator
     {
         internal Variable? variable = null;
-        internal readonly Stack<IOperator> Path = new();
+        internal readonly Stack<OperatorBase> Path = new();
         public VariableLocator()
         {
         }

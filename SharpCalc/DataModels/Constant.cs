@@ -1,28 +1,13 @@
-﻿using SharpCalc.Operators;
+﻿using SharpCalc.Components;
+using SharpCalc.Operators;
 
 namespace SharpCalc.DataModels
 {
-    internal class Constant : Proxy, IContent, IDataModel, IValued
+    internal class Constant : Proxy
     {
         public override string TypeName => "Constant";
-        public override bool HasValue => true;
-        // public string Name { get; }
-
-        //public Word Value { get; }
-
-        //string Word.ToText()
-        //{
-        //    return Name;
-        //}
-        //  Word? Word.Simplify() => Value;
-        // void Word.FindX(VariableLocator locator) { }
-
-        //Word IContent.Derivative(Variable x)
-        //{
-        //    return Value;
-        //}
-
-        public Constant(string name, double value) : base(name)
+        public override bool HasValue => true;      
+        public Constant(string name, Complex value) : base(name)
         {         
             Value = new Number(value);
         }

@@ -7,8 +7,8 @@ using System.Threading.Tasks;
 
 namespace SharpCalc.DataModels
 {
-    internal interface IEquation : IOperator
-    {
+    //internal interface IEquation : OperatorBase
+    //{
 
-    }
+    //}
 }

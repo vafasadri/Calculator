@@ -4,7 +4,7 @@ namespace SharpCalc.Operators.Arithmetic
 {
     static class Divide
     {
-        public static Multiply Create(Word a, Word b)
+        public static Multiply Create(Real a, Real b)
         {
             return new Multiply(a, new Power(b, new Number(-1)));
         }

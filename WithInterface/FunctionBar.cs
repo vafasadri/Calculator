@@ -1,4 +1,6 @@
-﻿namespace WithInterface
+﻿using SharpCalc.Components;
+
+namespace WithInterface
 {
 
     public partial class FunctionBar : UserControl
@@ -7,12 +9,12 @@
         void InitializeTags()
         {
           
-            btnSin.Tag = SharpCalc.StaticData.Sine;
-            btnCos.Tag = SharpCalc.StaticData.Cosine;
-            btnTan.Tag = SharpCalc.StaticData.Tangent;
-            btnCbrt.Tag = SharpCalc.StaticData.CubicRoot;
-            btnLn.Tag = SharpCalc.StaticData.NaturalLogarithm;
-            btnRandom.Tag = SharpCalc.StaticData.Random;
+            btnSin.Tag = StaticDataBank.Sine;
+            btnCos.Tag = StaticDataBank.Cosine;
+            btnTan.Tag = StaticDataBank.Tangent;
+            btnCbrt.Tag = StaticDataBank.CubicRoot;
+            btnLn.Tag = StaticDataBank.NaturalLogarithm;
+            btnRandom.Tag = StaticDataBank.Random;
         }
         public FunctionBar()
         {

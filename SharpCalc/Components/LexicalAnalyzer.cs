@@ -3,7 +3,7 @@ using SharpCalc.Exceptions;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 
-namespace SharpCalc;
+namespace SharpCalc.Components;
 /// <summary>
 /// Contains methods to convert a string to a linked list of objects the app can understand
 /// <br/>
@@ -11,7 +11,7 @@ namespace SharpCalc;
 ///  which will later be converted to operator classes like new Multiply(new Add(new Number(2),new Number(2)),new Number(3))
 ///
 /// </summary>
-static public class Serializer
+static public class LexicalAnalyzer
 {
     // Translations:
     // {&} => Abstract
@@ -27,7 +27,7 @@ static public class Serializer
         WhiteSpace, Digit, Letter, Symbol
     }
     static CharType GetCharType(string str, int index)
-    {   
+    {
         char current = str[index];
         if (char.IsWhiteSpace(current)) return CharType.WhiteSpace;
         else if (char.IsDigit(current)) return CharType.Digit;
@@ -52,7 +52,7 @@ static public class Serializer
     /// <exception cref="Exception"></exception>
     /// <exception cref="UnknownSymbolError"></exception>
     /// <exception cref="UnexpectedClosingSignError"></exception>
-    private static int AddSegment(Stack<LinkedList<object>> layers, StringSegment s, CharType type, bool allowExtractor)
+    private static int CreateToken(Stack<LinkedList<object>> layers, StringSegment s, CharType type, bool allowExtractor)
     {
         var current = layers.Peek();
 
@@ -71,18 +71,18 @@ static public class Serializer
                     switch (s[0])
                     {
                         case '{':
-                            if (!allowExtractor) throw new Exception("extractors are not allowed");
-                            if (s.Length < 3) throw new Exception("invalid extractor");
+                            if (!allowExtractor) throw new ExtractorsNotAllowedException();
+                            if (s.Length < 3) throw new InvalidExtractorException();
                             Extract code = s[1] switch
                             {
                                 '&' => Extract.Abstract,
                                 '*' => Extract.Any,
                                 '#' => Extract.Number,
-                                _ => throw new UnknownSymbolError('{' + s[1].ToString() + '}')
+                                _ => throw new InvalidExtractorCodeException(s[1])
                             };
                             current.AddLast(code);
-                            if (s[2] != '}') throw new Exception("expected an enclosing bracket");
-                            return 3;                           
+                            if (s[2] != '}') throw new UnexpectedClosingSignError();
+                            return 3;
                         case '(':
                             LinkedList<object> n = new();
                             current.AddLast(n);
@@ -97,36 +97,36 @@ static public class Serializer
                             Symbol symbol = SymbolIO.Get(s, out int move);
                             current.AddLast(symbol);
                             return move;
-                    }                  
+                    }
                 }
             default:
                 return 0;
         }
     }
 
-    static public LinkedList<object> ToObjectSeries(string m, bool allowExtractors)
-    {       
+    static public LinkedList<object> ToLexicalSeries(string m, bool allowExtractors)
+    {
         LinkedList<object> xbase = new();
         Stack<LinkedList<object>> layers = new();
-        layers.Push(xbase);   
+        layers.Push(xbase);
         // points to the first character of the current slice
-        int wordStart = 0;
+        int tokeStart = 0;
         // type of the last checked character, starting with the first character       
-        CharType lastType = m.Length > 0 ? GetCharType(m,0) : CharType.WhiteSpace;
+        CharType lastType = m.Length > 0 ? GetCharType(m, 0) : CharType.WhiteSpace;
         void fillTill(int end)
         {
-            while (wordStart < end)
+            while (tokeStart < end)
             {
-                wordStart += AddSegment(layers, new StringSegment(m, wordStart,end), lastType, allowExtractors);
+                tokeStart += CreateToken(layers, new StringSegment(m, tokeStart, end), lastType, allowExtractors);
             }
         }
         for (int i = 0; i < m.Length; i++)
-        {          
+        {
             CharType currentType = GetCharType(m, i);
             if (lastType != currentType)
             {
                 fillTill(i);
-                Debug.Assert(wordStart == i, "parseword went too far");
+                Debug.Assert(tokeStart == i);
             }
             lastType = currentType;
         }
@@ -144,17 +144,17 @@ static public class Serializer
             Extract.Number => v is Number,
             LinkedList<object> => v is LinkedList<object>,
             null => false,
-            _ => object.Equals(f, v)
+            _ => Equals(f, v)
         };
     }
     /// <summary>
-    /// checks if an expression matches a syntax expression and extracts any extractors
+    /// checks if an expression matches a syntax expression and fills any extractors
     /// </summary>
     /// <param name="expression">the expression</param>
     /// <param name="syntax">syntax to match</param>
     /// <param name="container">container to add the extracted objects</param>
     /// <returns>if the expression and syntax match</returns>
-    public static bool MatchSyntax(in LinkedList<object> expression,in LinkedList<object> syntax,in List<object> container)
+    public static bool MatchSyntax(in LinkedList<object> expression, in LinkedList<object> syntax, in List<object> container)
     {
         LinkedList<object>? tempexp = null;
         var sNode = syntax.First;

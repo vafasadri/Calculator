@@ -6,7 +6,8 @@ using System.Threading.Tasks;
 
 namespace SharpCalc.Exceptions
 {
-    internal class UnexpectedClosingSignError : ApplicationException
+    internal class InvalidExtractorException : ApplicationException
     {
+        public override string Message => "Invalid Extractor";
     }
 }

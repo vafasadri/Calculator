@@ -3,63 +3,42 @@ using System.Diagnostics;
 
 namespace SharpCalc.Operators
 {
-    internal class Tuple : IOperatorGroup
+    internal class Tuple : OperatorGroupBase
     {
-        public List<Word> Content { get; }
 
-        public static readonly OperatorGroupMetadata Metadata = OperatorGroupMetadata.Register
+        public static readonly OperatorGroupMetadata MetadataValue = new
         (
-            "Parameter List",5,
-            () => new Tuple()
+            "Parameter List", 5,
+            () => new Tuple(),
+            (factors) => new Tuple(factors),
+            Array.Empty<ISimplification>(),
+            new Tuple(Enumerable.Empty<IMathNode>()),
+            new Number(double.NaN)
         );
-        OperatorGroupMetadata IOperatorGroup.Metadata => Metadata;
-        public bool IsSealed { get; private set; }
-
-        public string ToText()
+        public override OperatorGroupMetadata Metadata => MetadataValue;
+        public override string ToText()
         {
-            return string.Join(", ", Content.Select(n => n.ToText()));
+            return string.Join(", ", Factors.Cast<Real>().Select(WrapMember));
         }
-        public Word? Simplify()
-        {
-            if (Utilities.SimplifyAny(Content, out var result))
-            {
-                return new Tuple(result);
-            }
-            else return null;
-        }
-
-        void Word.FindX(VariableLocator locator)
-        {
-            Utilities.IterateFactors(locator, Content);
-        }
-
-        void IOperatorGroup.AddOperand(Word operand)
-        {
-            if (IsSealed) throw new Exception("operator is sealed");
-            Content.Add(operand);
-        }
-        public void Seal()
-        {
-            IsSealed = true;          
-        }
-
-        public Word Convert(Word word, Symbol symbol)
+        public override IMathNode Convert(IMathNode word, Symbol symbol)
         {
             Debug.Assert(symbol == Symbol.Comma || symbol == Symbol.Null);
-            return word;          
+            return word;
         }
-        public Tuple(IEnumerable<Word> words)
-        {
-            Content = words.ToList();
-        }
-        public Tuple()
-        {
-            Content = new();
-        }
-        public Tuple(params Word[] words) : this(words as IEnumerable<Word>)
-        {
 
+        public override Real Differentiate()
+        {
+            throw new NotImplementedException();
         }
-       
+
+        public override Real Reverse(Real factor, Real target)
+        {
+            throw new InvalidOperationException();
+        }
+
+        public Tuple(IEnumerable<IMathNode> words) : base(words) { }
+        public Tuple() : base() { }
+        public Tuple(params Real[] words) : base(words) { }
+
     }
 }

@@ -4,12 +4,28 @@ MathParser parser = new();
 Console.WriteLine("Note: xyz will not be considered as x * y * z");
 while (true)
 {
-    
+
+    //try
+    //{
     Console.Write(">>> ");
 
     string expression = Console.ReadLine()!;
-    var solve = parser.Run(expression, out bool isSimplified);
-    Console.WriteLine(isSimplified ? solve.ToText() : solve.Print());
+    
+    var solve = parser.Run(expression, out bool printInDetails);
+    Console.WriteLine(printInDetails ? solve.Print() : solve.ToText());
+        
+    //}
+//    catch (
+//#if DEBUG
+//ApplicationException
+//#else 
+//Exception
+//#endif
+//    ex)
+//    {
+//        Console.WriteLine(ex.Message);
+//    }
+
 }
 
 
