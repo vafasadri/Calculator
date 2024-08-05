@@ -5,10 +5,8 @@ namespace SharpCalc.DataModels
     /// <summary>
     /// Wrapper class for <see cref="Double"/> that implements the <seealso cref="IMathNode"/> interface
     /// </summary>
-    internal readonly struct Number : Real
+    public readonly struct Number : Scalar
     {
-        // that's it i'm doing this
-        // i wanna add complex numbers to this thing
         public Complex Value { get; }     
         public bool IsNegative
         {
@@ -24,24 +22,26 @@ namespace SharpCalc.DataModels
             }
         }
         string IMathNode.TypeName => "Number";
-        public string ToText()
+        public string Render()
         {
             return Value.ToString();
         }
-        Real? Real.Simplify()
+        IMathNode? IMathNode.SimplifyInternal()
         {
             return null;
         }           
-        Real Real.Differentiate()
+        Scalar Scalar.Differentiate()
         {
             return new Number(0);
         }
 
-        void Real.EnumerateVariables(ISet<Proxy> variables)
+        void Scalar.EnumerateVariables(ISet<Variable> variables)
         {          
         }
 
-        bool Real.ContainsVariable(Proxy variable) => false;   
+        bool Scalar.ContainsVariable(Variable variable) => false;
+        public Complex ComputeNumerically() => Value;
+        public bool Equals(IMathNode? other) => other is Number n && n.Value == Value;
 
         public static implicit operator Number(double value)
         {

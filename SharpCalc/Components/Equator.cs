@@ -1,33 +1,30 @@
 ﻿using SharpCalc.DataModels;
+using SharpCalc.Exceptions;
 using SharpCalc.Operators;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 
 namespace SharpCalc.Components;
 
-public class Equator : IEqualityComparer<Real>
+public class Equator : IEqualityComparer<IMathNode>
 {
-    public readonly static IEqualityComparer<Real> Instance = new Equator();
-    static public bool Equals(Real left, Real right)
+    public readonly static IEqualityComparer<IMathNode> Instance = new Equator();
+    static public bool Equals(IMathNode left, IMathNode right)
     {
-        if (left is Number nl && right is Number nr) return nl.Value == nr.Value;
-        if (ReferenceEquals(left, right)) return true;
-        if (left is Variable { Equation: not null } lv && lv.Equation.Contains(right)) return true;
-        if (right is Variable { Equation: not null } rv && rv.Equation.Contains(left)) return true;
-
-        if (left is FunctionCall lf && right is FunctionCall rf) return lf.Left == rf.Left && Equator.Equals(lf.Right, rf.Right); 
-        return false;
+        if (left == null && right == null) return true;
+        else if (left == null || right == null) return false;
+        else return ReferenceEquals(left, right) || left.Equals(right) || right.Equals(left);       
     }
 
-    bool IEqualityComparer<Real>.Equals(Real? x, Real? y)
+    bool IEqualityComparer<IMathNode>.Equals(IMathNode? x, IMathNode? y)
     {
         if (x == null || y == null) return ReferenceEquals(x, y);
         else return Equals(x, y);
     }
 
-    public int GetHashCode([DisallowNull] Real obj)
+    public int GetHashCode([DisallowNull] IMathNode obj)
     {
-        throw new NotImplementedException();
+        throw new YouShouldntBeHere();
     }
     private Equator()
     {

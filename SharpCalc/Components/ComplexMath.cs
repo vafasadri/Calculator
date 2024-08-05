@@ -1,10 +1,11 @@
-﻿namespace SharpCalc.Components
+﻿using System.Runtime.CompilerServices;
+
+namespace SharpCalc.Components
 {
     public readonly struct Complex
     {
         public readonly double a;
         public readonly double b;
-
         public Complex(double real)
         {
             a = 0;
@@ -18,7 +19,12 @@
         {
             a = imaginary;
             b = real;
-        }       
+        }
+        
+        public override int GetHashCode()
+        {
+            return a.GetHashCode() ^ b.GetHashCode();
+        }
         public override string ToString()
         {
             if (double.IsNaN(a) ||double.IsNaN(b)) return "undefined";
@@ -55,55 +61,67 @@
                 return ito_string(this.a) + "i + " + to_string(this.b);
             }
         }
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool operator ==(Complex left, Complex right)
         {
             return left.a == right.a && left.b == right.b;
         }
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool operator !=(Complex left, Complex right)
         {
             return left.a != right.a || left.b != right.b;
         }
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool operator ==(Complex left, double right)
         {
             return left.a == 0 && left.b == right;
         }
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool operator !=(Complex left, double right)
         {
             return left.a != 0 || left.b != right;
         }
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool operator ==(double right, Complex left)
         {
             return left == right;
         }
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool operator !=(double right, Complex left)
         {
             return left != right;
         }
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Complex operator +(Complex left, Complex other)
         {
             return new Complex(left.a + other.a, left.b + other.b);
         }
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Complex operator +(Complex left, double right)
         {
             return new Complex(left.a, left.b + right);
         }
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Complex operator -(Complex left, double right)
         {
             return new Complex(left.a, left.b - right);
         }
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Complex operator -(Complex me, Complex other)
         {
             return new Complex(me.a - other.a, me.b - other.b);
         }
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Complex operator *(Complex me, double other)
         {
             return new Complex(me.a * other, me.b * other);
         }
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Complex operator -(Complex me)
         {
             return new Complex(-me.a, -me.b);
-        }
-
+        }      
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Complex operator *(in Complex me, in Complex other)
         {
             // (ai + b)(ci + d) = -ac + adi + bci + bd
@@ -113,38 +131,57 @@
             // wait me looks like a matrix deteminant
             return new Complex(imaginary, real);
         }
-
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Complex operator +(double left, Complex right)
         {
             return right + left;
         }
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Complex operator -(double left, Complex right)
         {
             return -right + left;
         }
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Complex operator *(double left, Complex right)
         {
             return right * left;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Complex operator /(Complex me, double other)
         {
             return new Complex(me.a / other, me.b / other);
         }
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Complex operator /(double left, Complex right)
         {
             var c = ComplexMath.Conj(right);
             return (left * c) / (c.b * c.b + c.a * c.a);
         }
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Complex operator /(Complex me, Complex other)
         {
             var c = ComplexMath.Conj(other);
             // (ai + b)(-ai + b) = b^2 + a^2
             return (me * c) / (other.b * other.b + other.a * other.a);
         }
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool operator <(Complex me, Complex other)
+        {
+            if (!me.IsReal() || !other.IsReal()) throw new Exceptions.CustomError("Cannot Compare two complex numbers");
+            return me.b < other.b;
+        }
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool operator >(Complex me, Complex other)
+        {
+            if (!me.IsReal() || !other.IsReal()) throw new Exceptions.CustomError("Cannot Compare two complex numbers");
+            return me.b > other.b;
+        }
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool IsReal() => a == 0;
 
-        public override bool Equals(object obj)
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public override bool Equals(object? obj)
         {
             return obj switch
             {
@@ -157,41 +194,40 @@
     }
     public static class ComplexMath
     {
-        private static double sin(double x)
+        private static double SinInternal(double x)
         {
             double backup = x;
-            while(x >= 2 * Math.PI)
-            {
-                x -= 2 * Math.PI;
-            }
-            while(x <= 0)
-            {
-                x += 2 * Math.PI;
-            }
+            double pis = Math.Floor(0.5 * x / Math.PI);
+            x -= pis * Math.PI * 2;
             if (x == 0) return 0;
             else if (x == Math.PI / 2) return 1;
             else if (x == Math.PI) return 0;           
             else if(x == 1.5 * Math.PI) return -1;
             return Math.Sin(backup);
         }
-        private static double cos(double x)
+        private static double CosInternal(double x)
         {
             double backup = x;
-            while (x >= 2 * Math.PI)
-            {
-                x -= 2 * Math.PI;
-            }
-            while (x <= 0)
-            {
-                x += 2 * Math.PI;
-            }
+            double pis = Math.Floor(0.5 * x / Math.PI);
+            x -= pis * 2 * Math.PI;
             if (x == 0) return 1;
             else if (x == Math.PI / 2) return 0;
             else if (x == Math.PI) return -1;
             else if (x == 1.5 * Math.PI) return 0;
             return Math.Cos(backup);
         }
-        public static Complex i = new Complex(1, 0);
+        private static (double,double) SinCosInternal(double x)
+        {
+            double backup = x;
+            double pis = Math.Floor(0.5 * x / Math.PI);
+            x -= pis * 2 * Math.PI;
+            if (x == 0) return (0,1);
+            else if (x == Math.PI / 2) return (1,0);
+            else if (x == Math.PI) return (0,-1);
+            else if (x == 1.5 * Math.PI) return (-1,0);
+            return Math.SinCos(backup);
+        }      
+        public readonly static Complex i = new(1, 0);
 
         //Complex operator""_i(long double mt)
         //{
@@ -201,32 +237,41 @@
         //{
         //    return Complex(mt, 0);
         //}
-       
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+
         public static Complex Conj(Complex num)
         {
             return new Complex(-num.a, num.b);
         }
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
 
         public static double Im(Complex num)
         {
             return num.a;
         }
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
 
         public static double Re(Complex num)
         {
             return num.b;
         }
-
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static double Abs(Complex c)
         {
+            if (c.IsReal()) return Math.Abs(c.b);
             return Math.Sqrt(c.a * c.a + c.b * c.b);
         }
         public static double Arg(Complex complex)
         {
+            if (complex.IsReal())
+            {
+                if (complex.b >= 0) return 0;
+                else return Math.PI;
+            }
             return Math.Atan2(complex.a, complex.b);
         }
 
-        public static Complex rotate(Complex c, double angle)
+        public static Complex Rotate(Complex c, double angle)
         {
             if (c == 0)
                 return new Complex(0);
@@ -235,20 +280,22 @@
             var theta = Arg(c);
             theta += angle;
             var ab = Abs(c);
-            return new Complex(ab *sin(theta), ab *cos(theta));
+            var (sin, cos) = SinCosInternal(theta);
+            return new Complex(ab * sin, ab * cos);
         }
-        public static Complex rotate(double r, double angle)
+        public static Complex Rotate(double r, double angle)
         {
             if (r == 0 || angle == 0)
                 return new Complex(r);
-            return new Complex(r * sin(angle), r * cos(angle));
+            var (sin, cos) = SinCosInternal(angle);
+            return new Complex(r * sin, r * cos);
         }
         public static Complex Pow(Complex complex, double right)
         {
             if (complex.IsReal() && complex.b >= 0) return Math.Pow(complex.b, right);            
             var theta = Arg(complex);
             var ab = Abs(complex);
-            return rotate(Math.Pow(ab, right), theta * right);
+            return Rotate(Math.Pow(ab, right), theta * right);
         }
         public static Complex Sqrt(double real)
         {
@@ -262,10 +309,15 @@
             if (c.IsReal()) return Sqrt(c.b);
             return Pow(c, 1 / 2.0);
         }
-        public static Complex Cbrt(Complex c)
+        public static Complex Cbrt(Complex value)
         {
-            if (c.IsReal()) return Math.Cbrt(c.b);
-            return Pow(c, 1 / 3.0);
+            if (value.IsReal()) return Math.Cbrt(value.b);
+            return Pow(value, 1 / 3.0);
+        }
+        public static Complex Log(double value)
+        {
+            if (value >= 0) return Math.Log(value);
+            else return new Complex(Math.PI, Math.Log(-value));
         }
         public static Complex Log(Complex c)
         {
@@ -279,23 +331,23 @@
         public static Complex Exp(Complex c)
         {
             if (c.IsReal()) return Math.Exp(c.b);
-            return rotate(Math.Exp(c.b), c.a);
+            return Rotate(Math.Exp(c.b), c.a);
         }
-        public static Complex Pow(double real, Complex c)
+        public static Complex Pow(double value, Complex c)
         {
-            if(c.IsReal()) return Math.Pow(real,c.b);
-            return Exp(Math.Log(real) * c);
+            if(c.IsReal() && value >= 0) return Math.Pow(value,c.b);
+            return Exp(Log(value) * c);
         }
-        public static Complex Pow(Complex bace, Complex ex)
+        public static Complex Pow(Complex value, Complex ex)
         {
-            if (bace.IsReal() && ex.IsReal()) return Math.Pow(bace.b, ex.b);
-            else if (bace.IsReal()) return Pow(bace.b, ex);
-            else if (ex.IsReal()) return Pow(bace, ex.b);
-            return Exp(Log(bace) * ex);
+            if (value.IsReal() && value.b >= 0 && ex.IsReal()) return Math.Pow(value.b, ex.b);
+            else if (value.IsReal()) return Pow(value.b, ex);
+            else if (ex.IsReal()) return Pow(value, ex.b);
+            return Exp(Log(value) * ex);
         }
         public static Complex Sin(Complex x)
         {
-            if (x.IsReal()) return sin(x.b);          
+            if (x.IsReal()) return SinInternal(x.b);          
             // i * (ai + b) = -a + bi
             var xi = new Complex(x.b, -x.a);
             // e^xi
@@ -306,7 +358,7 @@
         public static Complex Cos(Complex x)
         {
 
-            if (x.IsReal()) return cos(x.b);
+            if (x.IsReal()) return CosInternal(x.b);
             var xi = new Complex(x.b, -x.a);
             var etoxi = Exp(xi);
             // cos(x) = (e^xi + e^-xi)/2
@@ -325,8 +377,7 @@
             return (ex + 1 / ex) / 2;
         }
         public static Complex Tan(Complex x)
-        {
-            
+        {          
             if (x.IsReal()) return Math.Tan(x.b);
             return Sin(x) / Cos(x);
         }
@@ -381,6 +432,17 @@
             if (x == 0) return 0;
             return x / Abs(x);
         }
-
+        public static Complex Floor(Complex x)
+        {
+            return new Complex(Math.Floor(x.a),Math.Floor(x.b));
+        }
+        public static Complex Ceiling(Complex x)
+        {
+            return new Complex(Math.Ceiling(x.a), Math.Ceiling(x.b));
+        }
+        public static Complex Round(Complex x)
+        {
+            return new Complex(Math.Round(x.a), Math.Round(x.b));
+        }
     } // class ComplexMath
 }

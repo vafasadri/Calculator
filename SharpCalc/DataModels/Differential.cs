@@ -6,11 +6,14 @@ using System.Threading.Tasks;
 
 namespace SharpCalc.DataModels
 {
-    internal class Differential : Proxy
+    internal class Differential : Variable
     {
-        public Differential(Proxy parent) : base("d" + parent.Name)
+        Variable parent;
+        public Differential(Variable parent) : base("d" + parent.Name)
         {
+            this.parent = parent;
         }
-        public override Real Differentiate() => throw new NotImplementedException();
+        public override Scalar? Value { get =>
+                parent.Value?.Differentiate(); set => throw new Exceptions.CustomError("Cannot assign a value to a differential, integration is not supported"); }
     }
 }

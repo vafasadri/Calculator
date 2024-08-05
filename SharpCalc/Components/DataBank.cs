@@ -1,21 +1,19 @@
 ﻿using SharpCalc.DataModels;
 using System.Collections;
-using System.Reflection.Metadata.Ecma335;
 
 namespace SharpCalc.Components;
 
 readonly struct ShallowName : INamed
 {
     public string Name { get; }
-
     public ShallowName(string name)
     {
-        Name = name;
+        Name = name;      
     }
 }
 /// <summary>
 /// keeps track of variables and functions, creates a new variable when a new variable like x is mentioned inside math expressions
-/// and retrieves the variable in later uses inside expressions
+/// and retrieves the variable in later uses
 /// </summary>
 internal class DataBank : IReadonlyDataBank
 {
@@ -37,7 +35,7 @@ internal class DataBank : IReadonlyDataBank
         {
             return true;
         }
-        else if (data is IFunction && GetData(new ShallowName(data.Name)) is not IFunction _ and not Variable { Value: not null })
+        else if (data is not null && GetData(new ShallowName(data.Name)) is not IFunction _ and not Variable { Value: not null })
         {
             items.Remove(data);
             items.Add(data);
@@ -45,7 +43,6 @@ internal class DataBank : IReadonlyDataBank
         }
         return false;
     }
-
 
     public bool ContainsName(ShallowName name)
     {
@@ -59,22 +56,20 @@ internal class DataBank : IReadonlyDataBank
     public IDataModel ForceGetData(ShallowName name)
     {
         IDataModel? result = GetData(name);
-        result ??= CreateAbstract(name);
+        result ??= CreateVariable(name);
         return result;
     }
-    protected Variable CreateAbstract(ShallowName name)
+    
+    protected Variable CreateVariable(ShallowName name)
     {
-        Variable newab = new(name.Name);
+        var newab = new Variable(name.Name);
         items.Add(newab);
-        var d = newab.Differential = new Differential(newab);
-        items.Add(d);
+        
         return newab;
     }
     public bool AddData(IDataModel data)
     {
-
         return items.Add(data);
-
     }
 
     bool IReadonlyDataBank.ContainsName(string name)

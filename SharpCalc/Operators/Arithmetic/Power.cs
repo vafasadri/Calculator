@@ -4,30 +4,30 @@ using System.ComponentModel.DataAnnotations;
 
 namespace SharpCalc.Operators.Arithmetic;
 
-internal class Power : SingleOperatorBase
+internal class Power : ScalarSingleOperator
 {
-	internal Real Base => (Real)Left!;
-	internal Real Exponent => (Real) Right!;
-	public static readonly SingleOperatorMetadata MetadataValue = new(	
-		"Power", 0,
-		(left, right) => new Power((Real) left,(Real) right),
-		new ISimplification[]
-		{
+	internal Scalar Base => Left!;
+	internal Scalar Exponent => Right!;
+	public static readonly new SingleOperatorMetadata Metadata = new(typeof(Power), [
 			new PowerNumberNumber(),
-			new PowerWordNumber(),
+			new PowerAnyNumber(),
 			new PowerNumberMultiply(),
 			//new PowerNumberAdd(),
-			new PowerPowerWord(),	
-			new PowerMultiplyWord()
-		}
-	);
-	
-	public override SingleOperatorMetadata Metadata => MetadataValue;
-	public override string ToText()
+			new PowerPowerAny(),
+			new PowerMultiplyAny()
+		])
+	{
+
+		Name = "Power",
+		Precedence = 0,
+        Creator = (left, right) => new Power((Scalar)left, (Scalar)right),
+		OperandsSwappable = false,		
+    };			
+	public override string Render()
 	{
 		return $"{WrapMember(Base)}^{WrapMember(Exponent)}";
 	}		
-	public override Real Differentiate()
+	public override Scalar Differentiate()
 	{
 		//var e = Exponent.ContainsVariable(x);
 		//var b = Base.ContainsVariable(x);
@@ -49,15 +49,16 @@ internal class Power : SingleOperatorBase
 		//	return new Multiply(der,ln,this);
 		//      }
 		//      throw new NotImplementedException();
+
 		var mul = new Multiply();
 		mul.AddOperand(this);
-		var realExp = new Multiply(Exponent, new FunctionCall(StaticDataBank.ln, Base));
+		var realExp = new Multiply([Exponent, new FunctionCall(StaticDataBank.ln, Base)]);
 		mul.AddOperand(realExp.Differentiate());
 		mul.Seal();
 		return mul;
 	}
 
-    public override Real Reverse(Real factor, Real target)
+    public override Scalar Reverse(Scalar factor, Scalar target)
     {
 		var eqBase = Equator.Equals(factor, Base);
 		var eqExp = Equator.Equals(factor, Exponent);
@@ -68,7 +69,9 @@ internal class Power : SingleOperatorBase
 		else if (eqExp)
 		{
 			// log(target,exponent)
-			return new FunctionCall(StaticDataBank.log, new Tuple(target, Base));
+			ReadOnlySpan<IMathNode> param = [target, Base];
+
+            return new FunctionCall(StaticDataBank.log, param);
 		}
 		else if (eqBase)
 		{
@@ -79,35 +82,48 @@ internal class Power : SingleOperatorBase
 		else throw new Exception();    
     }
 
-    public Power(Real left, Real right) : base(left, right) { }
+	public override Complex ComputeNumerically() => ComplexMath.Pow(Base.ComputeNumerically(), Exponent.ComputeNumerically());
+    public override bool Equals(IMathNode? other)
+	{
+		if (other is not Power power) return false;
+		return Equator.Equals(power.Base, Base) && Equator.Equals(power.Exponent, Exponent);
+
+	}
+
+    public Power(Scalar left, Scalar right) : base(left, right) { }
 }
-file class PowerNumberNumber : IRealSimplification<Number, Number, Power>
+// 5^2 = 25
+file class PowerNumberNumber : ISimplification<Number, Number, Power>
 {
-	public Real? Simplify(Number left, Number right)
+	public  IMathNode? Simplify(Number left, Number right)
 	{		
 		return new Number(
 			ComplexMath.Pow(left.Value, right.Value)
 			);
 	}
 }
-file class PowerWordNumber : IRealSimplification<Real, Number, Power>
+// x^1 = x
+// x^0 = 1
+file class PowerAnyNumber : ISimplification<Scalar, Number, Power>
 {
-	public Real? Simplify(Real left, Number right)
+	public  IMathNode? Simplify(Scalar left, Number right)
 	{
 		if (right.Value == 0) return new Number(1);
 		else if (right.Value == 1) return left;
 		else return null;
 	}
 }
-file class PowerNumberMultiply : IRealSimplification<Number, Multiply, Power>
+// 2^(2x) = 4^x
+file class PowerNumberMultiply : ISimplification<Number, Multiply, Power>
 {
-	public Real? Simplify(Number left, Multiply right)
+	public  IMathNode? Simplify(Number left, Multiply right)
 	{
 		if (right.Coefficient == 1) return null;
-		var allbutNumber = right.Factors.Where(n => n is not Number).Cast<Real>();
+		var allbutNumber = right.Factors.Where(n => n is not Number).Cast<Scalar>();
 		return new Power(new Number(ComplexMath.Pow(left.Value, right.Coefficient)), new Multiply(allbutNumber));
 	}
 }
+// 2 ^ (x+2) = 4 * 2^x
 //file class PowerNumberAdd : ISimplification<Number, Add, Power>
 //{
 //	public Real? Simplify(Number left, Add right)
@@ -121,17 +137,19 @@ file class PowerNumberMultiply : IRealSimplification<Number, Multiply, Power>
 //		);
 //	}
 //}
-file class PowerPowerWord : IRealSimplification<Power, Real, Power>
+// (a^b)^c = a^(b.c)
+file class PowerPowerAny : ISimplification<Power, Scalar, Power>
 {
-    public Real? Simplify(Power left, Real right)
+    public  IMathNode? Simplify(Power left, Scalar right)
     {
-        return new Power(left.Base, new Multiply(left.Exponent, right));
+        return new Power(left.Base, new Multiply([left.Exponent, right]));
     }
 }
-file class PowerMultiplyWord : IRealSimplification<Multiply,Real,Power>
+// (xy)^2 = x^2.y^2
+file class PowerMultiplyAny : ISimplification<Multiply,Scalar,Power>
 {
-    public Real? Simplify(Multiply left, Real right)
+    public  IMathNode? Simplify(Multiply left, Scalar right)
     {       
-        return new Multiply(left.Factors.Select(n => new Power((Real) n,right)));
+        return new Multiply(left.Factors.Select(n => new Power((Scalar) n,right)));
     }
 }

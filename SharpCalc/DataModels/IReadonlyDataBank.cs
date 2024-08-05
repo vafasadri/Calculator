@@ -10,6 +10,5 @@ namespace SharpCalc.DataModels
     {
         bool ContainsName(string name);
         IDataModel? GetData(string name);
-
     }
 }

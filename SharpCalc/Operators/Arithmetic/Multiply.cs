@@ -1,36 +1,32 @@
 ﻿using SharpCalc.Components;
 using SharpCalc.DataModels;
-using System.Diagnostics;
+using System.Buffers;
 using System.Text;
-
 namespace SharpCalc.Operators.Arithmetic;
-internal class Multiply : OperatorGroupBase
+internal class Multiply : ScalarOperatorGroup
 {
-    public static readonly OperatorGroupMetadata MetadataValue = new(
-       "Multiply",
-       2,
-       () => new Multiply(),
-       (factors) => new Multiply(factors.Cast<Real>()),
-       new ISimplification[]
-       {
-           new MultiplyNumberNumber(),
-           new MultiplyNumberWord(),
-           new MultiplyMultiplyWord(),
+    public static readonly new OperatorGroupMetadata Metadata = new(typeof(Multiply),
+        [new MultiplyNumberNumber(),
+           new MultiplyNumberAny(),
            new MultiplyPowerPower(),
-           new MultiplyPowerWord(),
-           new MultiplyWordWord(),
-       },
-       new Number(1),
-       new Number(1)
-    );
-    public override OperatorGroupMetadata Metadata => MetadataValue;
+           new MultiplyPowerAny(),
+           new MultiplyAnyAny(),
+           new MultiplyAddAdd()])
+    {
+        Name = "Multiply",
+        Precedence = 2,
+        EmptyCreator = () => new Multiply(),
+        FullCreator = (factors) => new Multiply(factors.Cast<Scalar>()),
+        EmptyValue = new Number(1),
+        UnpackSelfType = true
+    };
     bool _neg;
     Complex _co;
     public bool IsNegative
     {
         get
         {
-            Debug.Assert(IsSealed);
+            if (!IsSealed) throw new Exceptions.CustomError("operator is still volatile");
             return _neg;
         }
     }
@@ -38,107 +34,111 @@ internal class Multiply : OperatorGroupBase
     {
         get
         {
-            Debug.Assert(IsSealed);
+            if (!IsSealed) throw new Exceptions.CustomError("operator is still volatile");
             return _co;
         }
     }
-    
-    public override string ToText()
+
+    public override string Render()
     {
-        List<Real> up = new();
-        Multiply? denominator = null;
-        foreach (var item in Factors.Where(x => x is not Number))
+        var numerator = ArrayPool<string>.Shared.Rent(Factors.Count);
+        var denominator = ArrayPool<string>.Shared.Rent(Factors.Count);
+        int numeratorIndex = 0;
+        int denominatorIndex = 0;
+        foreach (var item in Factors)
         {
-            if (item is Power pow && ((pow.Exponent is Number rg && rg.Value.IsReal() && rg.Value.b < 0)
-                || (pow.Exponent is Multiply { IsNegative: true })))
+            if (item is Number) continue;
+            else if (item is Power pow && (pow.Exponent is Number { IsNegative: true } or Multiply { IsNegative: true }))
             {
-                denominator ??= new();
-                var power = new Power(pow.Base, Negative.Create(pow.Exponent)).SuperSimplify(out _);
-                denominator.AddOperand(power);
+                var power = new Power(pow.Base, Negative.Create(pow.Exponent));
+                denominator[denominatorIndex++] = WrapMember((power as Scalar).Simplify(out _));
             }
             else
             {
-                up.Add((Real)item);
+                numerator[numeratorIndex++] = WrapMember(item);
             }
         }
-        denominator?.Seal();
-
         Complex numberfactor = Coefficient;
         StringBuilder builder = new();
         if (numberfactor == -1) builder.Append('-');
-        else if (Coefficient != 1 || up.Count == 0)
+        else if (numberfactor != 1 || numeratorIndex == 0)
         {
-            var real = numberfactor.IsReal();
-
-            if (!real) builder.Append('(');
+            var simple = (numberfactor.IsReal() && numberfactor.b > 0) && (numeratorIndex == 0 && !char.IsDigit(numerator[0][0]));
+            if (!simple) builder.Append('(');
             builder.Append(numberfactor);
-            if (!real) builder.Append(')');
+            if (!simple) builder.Append(')');
         }
-
-        builder.AppendJoin(" * ", up.Select(WrapMember));
-        if (denominator != null)
+        builder.AppendJoin(" * ", numerator.Take(numeratorIndex));
+        if (denominatorIndex != 0)
         {
             builder.Append(" / ");
-            builder.Append(denominator.ToText());
+            if (denominatorIndex > 1) builder.Append('(');
+            builder.AppendJoin(" * ", denominator.Take(denominatorIndex));
+            if (denominatorIndex > 1) builder.Append(')');
         }
+        ArrayPool<string>.Shared.Return(numerator);
+        ArrayPool<string>.Shared.Return(denominator);
         return builder.ToString();
     }
-    public override IMathNode Convert(IMathNode word, Symbol symbol)
+    public override IMathNode Convert(IMathNode value, Symbol symbol)
     {
-        if (symbol == Symbol.Cross || symbol == Symbol.Null || symbol == Symbol.Point) return word;
-        else if (symbol == Symbol.Slash) return new Power((Real)word, new Number(-1));
+        if (symbol == Symbol.Cross || symbol == Symbol.Null || symbol == Symbol.Point) return value;
+        else if (symbol == Symbol.Slash) return new Power((Scalar)value, new Number(-1));
         else throw new Exception();
     }
-    public override Real Differentiate()
+    public override Scalar Differentiate()
     {
         Add result = new();
-        var factorCopy = Factors.Cast<Real>().ToList();
 
-        for (int i = 0; i < factorCopy.Count; i++)
+        var buffer = ArrayPool<Scalar>.Shared.Rent(Factors.Count);
+        Memory<Scalar> memory = new(buffer, 0, Factors.Count);
+        var factorCopy = memory.Span;
+        for (int i = 0; i < factorCopy.Length; i++)
+        {
+            factorCopy[i] = (Scalar)Factors[i];
+        }
+        for (int i = 0; i < factorCopy.Length; i++)
         {
             var backup = factorCopy[i];
             var der = factorCopy[i].Differentiate();
             factorCopy[i] = der;
-            result.AddOperand(
-                new Multiply(factorCopy)
-                );
+            result.AddOperand(new Multiply(buffer.Take(factorCopy.Length)));
+
             factorCopy[i] = backup;
         }
         result.Seal();
+        ArrayPool<Scalar>.Shared.Return(buffer, true);
         return result;
     }
 
-    public override Real Reverse(Real factor, Real target)
+    public override Scalar Reverse(Scalar factor, Scalar target)
     {
-        var allbutFactor = Factors.Exclude(Enumerable.Repeat(factor, 1)).Cast<Real>();
+        var allbutFactor = Factors.Exclude([factor], Equator.Instance).Cast<Scalar>();
 
-        var oneOverAll = allbutFactor.Select(n => Divide.Create(new Number(1), n));
+        var oneOverAll = from n in allbutFactor select new Power(n, new Number(-1));
         return new Multiply(oneOverAll.Append(target));
     }
 
     public Multiply() : base() { }
-    public Multiply(IEnumerable<Real> words) : base(words) { }
-    public Multiply(params Real[] words) : base(words) { }
-
-    private static double rate(Real target)
+    public Multiply(IEnumerable<Scalar> factors) : base(factors) { }
+    private static double rate(Scalar target)
     {
         if (target is Differential)
         {
             return 2;
         }
-        else if (target is Proxy)
+        else if (target is Variable)
         {
             return 1;
         }
         else return 0;
     }
-    public override void Seal()
+    protected override void SealAction(List<IMathNode> nodes)
     {
-
-        _factors.Sort((left, right) =>
+        nodes.Sort((left, right) =>
         {
-            var rl = rate((Real)left);
-            var rr = rate((Real)right);
+            var rl = rate((Scalar)left);
+            var rr = rate((Scalar)right);
             if (rl != rr) return rl.CompareTo(rr);
 
             if (left is INamed ln && right is INamed rn)
@@ -148,21 +148,36 @@ internal class Multiply : OperatorGroupBase
             return 0;
         });
         _neg = Factors.Any(n => n is Number { IsNegative: true } || n is Multiply { IsNegative: true });
-        _co = Factors.OfType<Number>().Select(n => n.Value).Aggregate(new Complex(1),(start,current) => start * current);
-        base.Seal();
+        _co = Factors.OfType<Number>().Select(n => n.Value).Aggregate(new Complex(1), (start, current) => start * current);
+    }
+
+    public override Complex ComputeNumerically()
+    {
+        Complex result = new(1);
+        foreach (var item in Factors)
+        {
+            result *= ((Scalar)item).ComputeNumerically();
+        }
+        return result;
+    }
+
+    public override bool Equals(IMathNode? other)
+    {
+        return false;
+        throw new NotImplementedException();
     }
 }
 #region Simplifications
-file class MultiplyNumberNumber : IRealSimplification<Number, Number, Multiply>
+file class MultiplyNumberNumber : ISimplification<Number, Number, Multiply>
 {
-    public Real? Simplify(Number left, Number right)
+    public IMathNode? Simplify(Number left, Number right)
     {
         return new Number(left.Value * right.Value);
     }
 }
-file class MultiplyWordWord : IRealSimplification<Real, Real, Multiply>
+file class MultiplyAnyAny : ISimplification<Scalar, Scalar, Multiply>
 {
-    public Real? Simplify(Real left, Real right)
+    public IMathNode? Simplify(Scalar left, Scalar right)
     {
         if (!Equator.Equals(left, right)) return null;
 
@@ -173,18 +188,18 @@ file class MultiplyWordWord : IRealSimplification<Real, Real, Multiply>
     }
 }
 
-file class MultiplyNumberWord : IRealSimplification<Number, Real, Multiply>
+file class MultiplyNumberAny : ISimplification<Number, Scalar, Multiply>
 {
-    public Real? Simplify(Number left, Real right)
+    public IMathNode? Simplify(Number left, Scalar right)
     {
         if (left.Value == 1) return right;
         else if (left.Value == 0) return left;
         else return null;
     }
 }
-file class MultiplyPowerWord : IRealSimplification<Power, Real, Multiply>
+file class MultiplyPowerAny : ISimplification<Power, Scalar, Multiply>
 {
-    public Real? Simplify(Power left, Real right)
+    public IMathNode? Simplify(Power left, Scalar right)
     {
         if (!Equator.Equals(left.Base, right)) return null;
 
@@ -194,40 +209,35 @@ file class MultiplyPowerWord : IRealSimplification<Power, Real, Multiply>
             return left;
         }
         else return new Power(left.Base,
-            new Add(left.Exponent, new Number(1)));
+            new Add([left.Exponent, new Number(1)]));
     }
 }
-file class MultiplyMultiplyWord : IRealSimplification<Multiply, Real, Multiply>
+file class MultiplyPowerPower : ISimplification<Power, Power, Multiply>
 {
-    public Real? Simplify(Multiply left, Real right)
-    {
-        if (!left.IsSealed)
-        {
-            left.AddOperand(right);
-            return left;
-        }
-        else return new Multiply(left.Factors.Cast<Real>().Append(right));
-    }
-}
-file class MultiplyPowerPower : IRealSimplification<Power, Power, Multiply>
-{
-    public Real? Simplify(Power left, Power right)
+    public IMathNode? Simplify(Power left, Power right)
     {
         // x^a * x^b = x^(a+b)
         if (Equator.Equals(left.Base, right.Base))
         {
-            return new Power(left.Base, new Add(left.Exponent, right.Exponent));
-        }
-        // x^a * y^a = (x*y) ^ a
-        else if (Equator.Equals(left.Exponent, right.Exponent))
-        {
-
-            return new Power(
-                new Multiply(left.Base, right.Base),
-                left.Exponent
-                );
+            return new Power(left.Base, new Add([left.Exponent, right.Exponent]));
         }
         return null;
+    }
+}
+file class MultiplyAddAdd : ISimplification<Add, Add, Multiply>
+{
+    public IMathNode? Simplify(Add left, Add right)
+    {
+        var add = new Add();
+        foreach (var i in left.Factors)
+        {
+            foreach (var j in right.Factors)
+            {
+                add.AddOperand(new Multiply([(Scalar)i, (Scalar)j]));
+            }
+        }
+        add.Seal();
+        return add;
     }
 }
 #endregion

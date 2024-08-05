@@ -6,38 +6,45 @@ internal abstract class SingleOperatorBase : OperatorBase
 {
     public IMathNode? Left { get; }
     public IMathNode? Right { get; }
-    public abstract override SingleOperatorMetadata Metadata { get; }
-    public override Real? Simplify()
+    public new SingleOperatorMetadata Metadata => (SingleOperatorMetadata) base.Metadata;
+    public override  IMathNode? SimplifyInternal()
     {
         bool simpLeft = false, simpRight = false;
-        var left = Left?.TrySimplify(out simpLeft);
-        var right = Right?.TrySimplify(out simpRight);
-        foreach (var item in Metadata.Simplifications)
-        {
-            if (item.LeftOperandType.IsInstanceOfType(left) && item.RightOperandType.IsInstanceOfType(right))
-            {
-                var returnValue = item.Simplify(left, right);
-                if (returnValue != null) return (Real?) returnValue;
-            }
-        }
-        if (simpLeft || simpRight) return Metadata.CreateInstance(left, right);
+        var left = Left?.Simplify(out simpLeft);
+        var right = Right?.Simplify(out simpRight);
+        var m = Metadata.TrySimplify(left, right);
+        if (m != null) return m; 
+        else if (simpLeft || simpRight) return Metadata.CreateInstance(left, right);
         else return null;
-    }   
-    public override Real? GetParentFactor(Proxy variable)
-    {
-        if (ReferenceEquals(Left, variable) || Left is OperatorBase op && op.GetParentFactor(variable) != null) return (Real) Left;
-        if (ReferenceEquals(Right, variable) || Right is OperatorBase op2 && op2.GetParentFactor(variable) != null) return (Real) Right;
-        return null;
     }
-    public override void EnumerateVariables(ISet<Proxy> variables)
-    {
-        (Left as Real)?.EnumerateVariables(variables);
-        (Right as Real)?.EnumerateVariables(variables);
-    }
-    public override bool ContainsVariable(Proxy variable) => ((Left as Real)?.ContainsVariable(variable) ?? false) || ((Right as Real)?.ContainsVariable(variable) ?? false);
+    
     protected SingleOperatorBase(IMathNode? left, IMathNode? right)
     {
         Left = left;
         Right = right;
+    }
+}
+internal abstract class ScalarSingleOperator : SingleOperatorBase,IScalarOperator
+{
+    public new Scalar? Left => (Scalar?)base.Left;
+    public new Scalar? Right => (Scalar?) base.Right;
+    public Scalar? GetParentFactor(Variable variable)
+    {
+        if (ReferenceEquals(Left, variable) || Left is IScalarOperator op && op.GetParentFactor(variable) != null) return Left;
+        if (ReferenceEquals(Right, variable) || Right is IScalarOperator op2 && op2.GetParentFactor(variable) != null) return Right;
+        return null;
+    }
+    public virtual void EnumerateVariables(ISet<Variable> variables)
+    {
+        Left?.EnumerateVariables(variables);
+        Right?.EnumerateVariables(variables);
+    }
+    public bool ContainsVariable(Variable variable) => ((Left)?.ContainsVariable(variable) ?? false) || ((Right)?.ContainsVariable(variable) ?? false);
+    public abstract Complex ComputeNumerically();
+    public abstract Scalar Differentiate();
+    public abstract Scalar? Reverse(Scalar factor, Scalar target);
+    public ScalarSingleOperator(Scalar? left, Scalar? right) : base(left,right)
+    {
+     
     }
 }

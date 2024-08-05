@@ -4,6 +4,6 @@ namespace SharpCalc.DataModels
 {
     public interface IDataModel : IMathNode,INamed
     {
-        string IMathNode.ToText() => Name;
+        string IMathNode.Render() => Name;
     }
 }

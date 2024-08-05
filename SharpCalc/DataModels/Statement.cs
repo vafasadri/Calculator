@@ -1,4 +1,4 @@
-﻿using SharpCalc.Operators;
+﻿using SharpCalc.Components;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -7,8 +7,8 @@ using System.Threading.Tasks;
 
 namespace SharpCalc.DataModels
 {
-    //internal interface IEquation : OperatorBase
-    //{
-
-    //}
+    
+    internal interface Statement : IMathNode
+    {       
+    }
 }

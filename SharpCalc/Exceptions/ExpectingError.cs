@@ -7,7 +7,7 @@ namespace SharpCalc.Exceptions
         readonly string What;
         readonly string Where;
         readonly IMathNode? Provided;
-        public override string Message => $"Expected {What} {Where}, '{(Provided == null ? "Nothing" : Provided.TypeName)}' provided";
+        public override string Message => $"Expected {What} {Where}, {(Provided != null ? "'" + Provided.TypeName + "'" : "Nothing") } provided";
         public ExpectingError(string what, string where, IMathNode? provided)
         {
             this.What = what;

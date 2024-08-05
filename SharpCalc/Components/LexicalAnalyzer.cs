@@ -1,7 +1,6 @@
 ﻿using SharpCalc.DataModels;
 using SharpCalc.Exceptions;
 using System.Diagnostics;
-using System.Diagnostics.CodeAnalysis;
 
 namespace SharpCalc.Components;
 /// <summary>
@@ -31,7 +30,7 @@ static public class LexicalAnalyzer
         char current = str[index];
         if (char.IsWhiteSpace(current)) return CharType.WhiteSpace;
         else if (char.IsDigit(current)) return CharType.Digit;
-        else if (char.IsLetter(current) || current == '_' || current == '$' || current == '#') return CharType.Letter;
+        else if (char.IsLetter(current) || current == '_' || current == '$' || current == '#' || current == '\'' || current == '"' || current == '`') return CharType.Letter;
         else if (current == '.')
         {
             if (index > 0 && char.IsDigit(str[index - 1]) &&
@@ -46,7 +45,7 @@ static public class LexicalAnalyzer
     /// </summary>
     /// <param name="layers"></param>
     /// <param name="s"></param>
-    /// <param name="type">type of the current word</param>
+    /// <param name="type">type of the current token</param>
     /// <param name="allowExtractor">whether allow extractor classes or not</param>
     /// <returns>bytes moved</returns>
     /// <exception cref="Exception"></exception>
@@ -67,37 +66,35 @@ static public class LexicalAnalyzer
                 current.AddLast(s.ToString());
                 return s.Length;
             case CharType.Symbol:
+                switch (s[0])
                 {
-                    switch (s[0])
-                    {
-                        case '{':
-                            if (!allowExtractor) throw new ExtractorsNotAllowedException();
-                            if (s.Length < 3) throw new InvalidExtractorException();
-                            Extract code = s[1] switch
-                            {
-                                '&' => Extract.Abstract,
-                                '*' => Extract.Any,
-                                '#' => Extract.Number,
-                                _ => throw new InvalidExtractorCodeException(s[1])
-                            };
-                            current.AddLast(code);
-                            if (s[2] != '}') throw new UnexpectedClosingSignError();
-                            return 3;
-                        case '(':
-                            LinkedList<object> n = new();
-                            current.AddLast(n);
-                            layers.Push(n);
-                            return 1;
-                        case ')':
-                            if (layers.Count <= 1)
-                                throw new UnexpectedClosingSignError();
-                            else layers.Pop();
-                            return 1;
-                        default:
-                            Symbol symbol = SymbolIO.Get(s, out int move);
-                            current.AddLast(symbol);
-                            return move;
-                    }
+                    case '{':
+                        if (!allowExtractor) throw new ExtractorsNotAllowedException();
+                        if (s.Length < 3) throw new InvalidExtractorException();
+                        Extract code = s[1] switch
+                        {
+                            '&' => Extract.Abstract,
+                            '*' => Extract.Any,
+                            '#' => Extract.Number,
+                            _ => throw new InvalidExtractorCodeException(s[1])
+                        };
+                        current.AddLast(code);
+                        if (s[2] != '}') throw new UnexpectedClosingSignError();
+                        return 3;
+                    case '(':
+                        LinkedList<object> n = new();
+                        current.AddLast(n);
+                        layers.Push(n);
+                        return 1;
+                    case ')':
+                        if (layers.Count <= 1)
+                            throw new UnexpectedClosingSignError();
+                        else layers.Pop();
+                        return 1;
+                    default:
+                        Symbol symbol = SymbolIO.Get(s, out int move);
+                        current.AddLast(symbol);
+                        return move;
                 }
             default:
                 return 0;
@@ -110,14 +107,14 @@ static public class LexicalAnalyzer
         Stack<LinkedList<object>> layers = new();
         layers.Push(xbase);
         // points to the first character of the current slice
-        int tokeStart = 0;
+        int tokenStart = 0;
         // type of the last checked character, starting with the first character       
         CharType lastType = m.Length > 0 ? GetCharType(m, 0) : CharType.WhiteSpace;
         void fillTill(int end)
         {
-            while (tokeStart < end)
+            while (tokenStart < end)
             {
-                tokeStart += CreateToken(layers, new StringSegment(m, tokeStart, end), lastType, allowExtractors);
+                tokenStart += CreateToken(layers, new StringSegment(m, tokenStart, end), lastType, allowExtractors);
             }
         }
         for (int i = 0; i < m.Length; i++)
@@ -126,7 +123,7 @@ static public class LexicalAnalyzer
             if (lastType != currentType)
             {
                 fillTill(i);
-                Debug.Assert(tokeStart == i);
+                Debug.Assert(tokenStart == i);
             }
             lastType = currentType;
         }
@@ -137,6 +134,7 @@ static public class LexicalAnalyzer
 
     static bool Is(object? f, object v)
     {
+        if (v == null) return false;
         return f switch
         {
             Extract.Any => v is not null,
@@ -156,6 +154,11 @@ static public class LexicalAnalyzer
     /// <returns>if the expression and syntax match</returns>
     public static bool MatchSyntax(in LinkedList<object> expression, in LinkedList<object> syntax, in List<object> container)
     {
+        if (expression.Count == 0 && syntax.Count == 1 && syntax.First.Value is Extract.Any)
+        {
+            container.Add(new LinkedList<object>());
+            return true;
+        }
         LinkedList<object>? tempexp = null;
         var sNode = syntax.First;
         var xNode = expression.First;
@@ -167,7 +170,8 @@ static public class LexicalAnalyzer
             }
             if (sNode.Value is LinkedList<object> innerS)
             {
-                if (!MatchSyntax((LinkedList<object>)xNode.Value, innerS, container)) return false;
+                if (xNode.Value is not LinkedList<object> series) return false;
+                if (!MatchSyntax(series, innerS, container)) return false;
             }
             else if (sNode.Value is Extract f)
             {
@@ -175,10 +179,10 @@ static public class LexicalAnalyzer
                 {
                     tempexp ??= new();
                     tempexp.AddLast(xNode.Value);
+
+                    if (sNode.Next?.Value is Extract.Any) throw new ArgumentException("there are two or more 'any' extractors in a row");
                     // is it ending?
-                    if (sNode.Next?.Value is Extract.Any)
-                        throw new ArgumentException("there are two or more 'any' extractors in a row");
-                    if (xNode.Next == null || Is(sNode.Next?.Value, xNode.Value))
+                    if (xNode.Next == null || Is(sNode.Next?.Value, xNode.Next?.Value))
                     {
                         container.Add(tempexp);
                         tempexp = null;

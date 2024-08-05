@@ -1,6 +1,8 @@
 ﻿using SharpCalc.DataModels;
+using SharpCalc.Equations;
 using SharpCalc.Operators;
 using SharpCalc.Operators.Arithmetic;
+using SharpCalc.Operators.Logic;
 using System.Diagnostics;
 
 namespace SharpCalc.Components;
@@ -11,15 +13,19 @@ public static class Classifier
     /// </summary>
     static readonly SortedDictionary<Symbol, OperatorMetadata> Infos = new()
         {
-            {Symbol.Plus,Add.MetadataValue },
-            {Symbol.Minus,Add.MetadataValue },
-            {Symbol.Power,Power.MetadataValue },
-            {Symbol.Comma, Operators.Tuple.MetadataValue },
-            {Symbol.Cross,Multiply.MetadataValue },
-            {Symbol.Assign,Equations.Equation.MetadataValue},
-            {Symbol.Invisible_FunctionCall,FunctionCall.MetadataValue },
-            {Symbol.Point,Multiply.MetadataValue },
-            {Symbol.Slash,Multiply.MetadataValue },
+            {Symbol.Plus,Add.Metadata },
+            {Symbol.Minus,Add.Metadata },
+            {Symbol.Power,Power.Metadata },
+            {Symbol.Comma, Operators.Tuple.Metadata },
+            {Symbol.Cross,Multiply.Metadata },
+            {Symbol.Assign, Equations.Equal.Metadata},
+            {Symbol.Invisible_FunctionCall,FunctionCall.Metadata },
+            {Symbol.Point,Multiply.Metadata },
+            {Symbol.Slash,Multiply.Metadata },
+            {Symbol.Tilde,Not.Metadata },
+            {Symbol.Ampersand,And.Metadata },
+            {Symbol.Pipe,Or.Metadata },
+            {Symbol.Implies,Condition.Metadata},
         };
 
     /// converts the symbol on top of the stack into an operator
@@ -36,16 +42,19 @@ public static class Classifier
         if (info is OperatorGroupMetadata groupInfo)
         {
             // add an operand to the previous operator
-            if (left is OperatorGroupBase{IsSealed:false } opGroup && opGroup.Metadata == groupInfo)
+            if (left is OperatorGroupBase { IsSealed: false } opGroup && opGroup.Metadata == groupInfo)
             {
                 expression.Remove(node.Previous!);
                 expression.Remove(node.Next!);
+                if (right is OperatorGroupBase opg) opg.Seal();
                 opGroup.AddOperand(opGroup.Convert(right!, opSymbol));
+
                 node.Value = opGroup;
             }
             // create a new operator
             else
             {
+                if (node.Next == null || right == null) throw new Exceptions.ExpectingError("an operand", $"after operator '{info.Name}'", right);
                 var multi = groupInfo.CreateInstance();
                 if (!groupInfo.IsLeftOptional || left != null)
                 {
@@ -75,10 +84,15 @@ public static class Classifier
         }
     }
 
-    static IDataModel GetData(string str, DataBank? bank, IEnumerable<RuntimeFunction.Parameter>? parameters)
+    static IDataModel? GetDataInternal(string str, DataBank? bank, IEnumerable<Variable>? parameters, bool force)
     {
         IDataModel? a = parameters?.SingleOrDefault(s => s.Name == str);
-        a ??= bank!.ForceGetData(new ShallowName(str));
+        IReadonlyDataBank readonlybank = bank ?? StaticDataBank.DataBank;
+        a ??= readonlybank!.GetData(str);
+        if (force)
+        {
+            a ??= bank!.ForceGetData(new ShallowName(str));
+        }
         return a;
     }
 
@@ -92,12 +106,57 @@ public static class Classifier
         info = null;
         return false;
     }
+    static IDataModel GetData(string str, DataBank? bank, IEnumerable<Variable>? parameters)
+    {
+        // all of this only to add differential notations
+        // stupid!
+        IDataModel? d = null;
+
+        int primes = 0;
+        int ds = 0;
+        while (str.EndsWith('\'') || str.EndsWith('"') || str.EndsWith('`'))
+        {
+            if (str.EndsWith('\'')) primes++;
+            else if (str.EndsWith('"')) primes += 2;
+            else if (str.EndsWith('`')) primes++;
+            str = str.Remove(str.Length - 1);
+        }
+        while (str.StartsWith('d') && (d = GetDataInternal(str, bank, parameters, false)) == null)
+        {
+            ds++;
+            str = str.Remove(0, 1);
+        }
+
+         d ??= GetDataInternal(str, bank, parameters, true);
+
+
+        if (d is IFunction func)
+        {
+            if (ds != 0) throw new Exceptions.CustomError("Cannot use d with functions, use primes (',`,\") instead");
+            for (int i = 0; i < primes; i++)
+            {
+                func = func.GetDerivative();
+            }
+            return func;
+        }
+        else if (d is Variable proxy)
+        {
+            if (primes != 0) throw new Exceptions.CustomError("Cannot use prime with variables, use d instead");
+            for (int i = 0; i < ds; i++)
+            {
+                proxy = proxy.Differential;
+            }
+            return proxy;
+        }
+
+        return d!;
+    }
     /// <summary>
-    /// converts series of lexical tokens into a <see cref="IMathNode"/>
+    /// converts series of lexical tokens into an <see cref="IMathNode"/>
     /// </summary>    
     /// <param name="data">the data bank to search for names</param>
     /// <param name="parameters">a list of function parameters to replace occurences of its name with, used when classifying a function body</param>
-    internal static IMathNode Classify(LinkedList<object> series, DataBank? data, IEnumerable<RuntimeFunction.Parameter>? parameters)
+    internal static IMathNode Classify(LinkedList<object> series, DataBank? data, IEnumerable<Variable>? parameters)
     {
         Stack<LinkedListNode<object>> opStack = new();
         for (var node = series.First; node != null; node = node.Next)
@@ -131,7 +190,6 @@ public static class Classifier
                    (lastInfo != thisInfo || lastInfo is OperatorGroupMetadata) &&
                    lastInfo.Precedence <= thisInfo.Precedence)
                     {
-                        if (lastInfo.IsEquational) throw new Exceptions.EquationChildError();
                         CombineNode(series, opStack.Pop());
                     }
                     opStack.Push(node);
@@ -146,18 +204,18 @@ public static class Classifier
         while (opStack.Count > 0)
         {
             var top = opStack.Pop();
-            if (Infos[(Symbol)top.Value].IsEquational && opStack.Count > 0) throw new Exceptions.EquationChildError();
             CombineNode(series, top);
         }
-        Debug.Assert(series.Count == 1);
-        if (series.First.Value is OperatorGroupBase opg) opg.Seal();
+        Debug.Assert(series.Count <= 1);
+        if (series.Count == 0) return Operators.Tuple.Empty;
+        if (series.First!.Value is OperatorGroupBase opg) opg.Seal();
         return (IMathNode)series.First.Value;
     }
 
     public static IMathNode SolveExternal(LinkedList<object> x)
     {
         var s = Classify(x, null, null);
-        return s.TrySimplify(out _);
+        return s.Simplify(out _);
     }
 }
 

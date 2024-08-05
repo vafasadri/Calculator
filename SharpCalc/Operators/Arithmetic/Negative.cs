@@ -5,9 +5,9 @@ namespace SharpCalc.Operators.Arithmetic
 {
     static class Negative
     {
-        public static Multiply Create(Real word)
+        public static Multiply Create(Scalar value)
         {
-            return new Multiply(new Number(-1), word);
+            return new Multiply([new Number(-1), value]);
         }
     }
 }

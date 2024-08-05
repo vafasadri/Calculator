@@ -3,10 +3,9 @@ using SharpCalc.Operators;
 
 namespace SharpCalc.DataModels
 {
-    internal class Constant : Proxy
+    internal class Constant : Variable
     {
-        public override string TypeName => "Constant";
-        public override bool HasValue => true;      
+        public override string TypeName => "Constant";            
         public Constant(string name, Complex value) : base(name)
         {         
             Value = new Number(value);

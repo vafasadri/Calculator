@@ -1,44 +1,45 @@
-﻿using SharpCalc.DataModels;
-using System.Diagnostics;
+﻿using SharpCalc.Components;
+using SharpCalc.DataModels;
 
 namespace SharpCalc.Operators
 {
     internal class Tuple : OperatorGroupBase
     {
 
-        public static readonly OperatorGroupMetadata MetadataValue = new
-        (
-            "Parameter List", 5,
-            () => new Tuple(),
-            (factors) => new Tuple(factors),
-            Array.Empty<ISimplification>(),
-            new Tuple(Enumerable.Empty<IMathNode>()),
-            new Number(double.NaN)
-        );
-        public override OperatorGroupMetadata Metadata => MetadataValue;
-        public override string ToText()
+        public static readonly new OperatorGroupMetadata Metadata = new(typeof(Tuple), [])
         {
-            return string.Join(", ", Factors.Cast<Real>().Select(WrapMember));
+            Name = "Parameter List",
+            Precedence = 5,
+            EmptyCreator = () => new Tuple(),
+            FullCreator = (factors) => new Tuple(factors),
+            EmptyValue = null,
+            UnpackSelfType = false,
+            OperandsSwappable = false
+        };
+        public static readonly Tuple Empty = new([]);
+        public override string Render()
+        {
+            return string.Join(", ", Factors.Cast<Scalar>().Select(WrapMember));
         }
-        public override IMathNode Convert(IMathNode word, Symbol symbol)
+        public override IMathNode? SimplifyInternal()
         {
-            Debug.Assert(symbol == Symbol.Comma || symbol == Symbol.Null);
-            return word;
-        }
-
-        public override Real Differentiate()
-        {
-            throw new NotImplementedException();
+            IMathNode[] simplifiedFactors = pool.Rent(Factors.Count);
+            var simplified = Utilities.SimplifyAny(Factors, simplifiedFactors);
+            if (simplified) return new Tuple(simplifiedFactors.Take(Factors.Count));
+            else return null;
         }
 
-        public override Real Reverse(Real factor, Real target)
+        public override bool Equals(IMathNode? other)
         {
-            throw new InvalidOperationException();
+            if (Factors.Count == 1 && Equator.Equals(Factors[0], other)) return true;
+            else if (other is Tuple tuple)
+            {
+                return Factors.SequenceEqual(tuple.Factors, Equator.Instance);
+            }
+            return false;
         }
 
-        public Tuple(IEnumerable<IMathNode> words) : base(words) { }
+        public Tuple(IEnumerable<IMathNode> nodes) : base(nodes) { }
         public Tuple() : base() { }
-        public Tuple(params Real[] words) : base(words) { }
-
     }
 }

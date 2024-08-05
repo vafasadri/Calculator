@@ -1,14 +1,11 @@
 ﻿using SharpCalc.DataModels;
-using SharpCalc.Operators;
-using SharpCalc.Operators.Arithmetic;
+using SharpCalc.Functions;
 using System.Collections;
-using System.Runtime.InteropServices;
 
 namespace SharpCalc.Components;
 
-using CF = CompiledFunction;
+using CF = NativeFunction;
 using param1 = Func<Complex, Complex>;
-using param2 = Func<Complex, Complex, Complex>;
 /// <summary>
 /// a collection of common math functions and variables, like "e","pi","cos" and etc open for third party references
 /// </summary>
@@ -18,10 +15,12 @@ public class StaticDataBank
     {
         internal static readonly List<IDataModel> _bank = new()
         {
-            pi,e,log,ln,sqrt,cbrt,nrt,
-            rand,remainder,floor,round,ceil,min,max,clamp,deg,rad,SigmaSummation.Instance,i,
+            pi,e,ln,
+            rand,remainder,floor,round,ceil,min,max,clamp,i,
             sin,tan,cos,cot,sinh,tanh,cosh,coth,arcsin,arctan,arccos,arccot,
-            abs,conj,arg,re,im,sign,Differentiate.Instance
+            abs,conj,arg,re,im,sign,
+            d,sigma,
+            True,False
         };
 
         public bool ContainsName(string name)
@@ -30,7 +29,7 @@ public class StaticDataBank
         }
         public IDataModel? GetData(string name)
         {
-            return _bank.Find(n => n.Name == name);
+            return _bank.Find(n => n != null && n.Name == name);
         }
         public IEnumerator<IDataModel> GetEnumerator()
         {
@@ -41,69 +40,77 @@ public class StaticDataBank
             return _bank.GetEnumerator();
         }
     }
-    static private Complex wrapper(Complex a, Func<double, double> func)
+    static private Func<Complex, Complex> Wrapper(Func<double, double> func)
     {
-        if (!a.IsReal()) return new Complex(double.NaN, double.NaN);
-        return func(a.b);
+        return (a) =>
+        {
+            if (!a.IsReal()) return new Complex(double.NaN, double.NaN);
+            return (Complex)func(a.b);
+        };
     }
-    static private Complex wrapper(Complex a,Complex b,Func<double,double,double> func)
+    static private Func<Complex, Complex, Complex> wrapper(Func<double, double, double> func)
     {
-        if (!a.IsReal() || !b.IsReal()) return new Complex(double.NaN, double.NaN);
-        return func(a.b, b.b);
+        return (a, b) =>
+        {
+            if (!a.IsReal() || !b.IsReal()) return new Complex(double.NaN, double.NaN);
+            return (Complex)func(a.b, b.b);
+        };
     }
-    static private Complex wrapper(Complex a, Complex b,Complex c, Func<double, double, double,double> func)
+    static private Func<Complex,Complex,Complex,Complex> wrapper(Func<double, double, double, double> func)
     {
-        if (!a.IsReal() || !b.IsReal() || !c.IsReal()) return new Complex(double.NaN, double.NaN);
-        return func(a.b, b.b,c.b);
+        return (a, b, c) =>
+        {
+            if (!a.IsReal() || !b.IsReal() || !c.IsReal()) return new Complex(double.NaN, double.NaN);
+            return (Complex) func(a.b, b.b, c.b);
+        };
     }
     internal static readonly Constant i = new("i", ComplexMath.i);
-    internal static readonly Constant pi = new("pi",new Complex( Math.PI));
-    internal static readonly Constant e = new("e",  new Complex(Math.E));
+    internal static readonly Constant pi = new("pi", Math.PI);
+    internal static readonly Constant e = new("e", Math.E);
 
-    internal static readonly CF sin = new(ComplexMath.Sin, "sin", "Sine of x radians");
-    internal static readonly CF tan = new(ComplexMath.Tan, "tan", "Tangent of x radians");
-    internal static readonly CF cos = new(ComplexMath.Cos, "cos", "Cosine of x radians");
-    internal static readonly CF cot = new(ComplexMath.Cot, "cot", "Cotangent of x radians");
-    
-    internal static readonly CF arcsin = new(ComplexMath.Arcsin, "arcsin", "Inverse Sine of x radians");
-    internal static readonly CF arccos = new(ComplexMath.Arccos, "arccos", "Inverse Cosine of x radians");
-    internal static readonly CF arctan = new(ComplexMath.Arctan, "arctan", "Inverse Tangent of x radians");
-    internal static readonly CF arccot = new(ComplexMath.Arccot, "arccot", "Inverse Cotangent of x radians");
+    internal static readonly CF sin = new(ComplexMath.Sin) { Name = "sin", Description = "Sine of x radians" };
+    internal static readonly CF tan = new(ComplexMath.Tan) { Name = "tan", Description = "Tangent of x radians" };
+    internal static readonly CF cos = new(ComplexMath.Cos) { Name = "cos", Description = "Cosine of x radians" };
+    internal static readonly CF cot = new(ComplexMath.Cot) { Name = "cot", Description = "Cotangent of x radians" };
 
-    internal static readonly CF sinh = new(ComplexMath.Sinh, "sinh", "Hyperbolic Sine of x radians");
-    internal static readonly CF tanh = new(ComplexMath.Tanh, "tanh", "Hyperbolic Tangent of x radians");
-    internal static readonly CF cosh = new(ComplexMath.Cosh, "cosh", "Hyperbolic Cosine of x radians");
-    internal static readonly CF coth = new(ComplexMath.Coth, "coth", "Hyperbolic Cotangent of x radians");
-   
-    
-    internal static readonly CF ln = new((param1)ComplexMath.Log, "ln", "natural logarithm of x (base e)");
+    internal static readonly CF arcsin = new(ComplexMath.Arcsin) { Name = "arcsin", Description = "Inverse Sine of x radians" };
+    internal static readonly CF arccos = new(ComplexMath.Arccos) { Name = "arccos", Description = "Inverse Cosine of x radians" };
+    internal static readonly CF arctan = new(ComplexMath.Arctan) { Name = "arctan", Description = "Inverse Tangent of x radians" };
+    internal static readonly CF arccot = new(ComplexMath.Arccot) { Name = "arccot", Description = "Inverse Cotangent of x radians" };
 
-   
-    internal static readonly CF abs = new((Complex x) => (Complex)ComplexMath.Abs(x), "abs", "Absolute Value", "The absolute value of x");
-    internal static readonly CF sign = new(ComplexMath.Sign, "sign", "Absolute Value", "The absolute value of x");
-    internal static readonly CF conj = new(ComplexMath.Conj, "conj", "Sine of x radians");
-    internal static readonly CF arg = new((Complex x) => (Complex)ComplexMath.Arg(x), "arg", "Tangent of x radians");
-    internal static readonly CF re = new((Complex x) => (Complex) ComplexMath.Re(x), "Re", "Cosine of x radians");
-    internal static readonly CF im = new((Complex x) => (Complex) ComplexMath.Im(x), "Im", "Cotangent of x radians");
+    internal static readonly CF sinh = new(ComplexMath.Sinh) { Name = "sinh", Description = "Hyperbolic Sine of x radians" };
+    internal static readonly CF tanh = new(ComplexMath.Tanh) { Name = "tanh", Description = "Hyperbolic Tangent of x radians" };
+    internal static readonly CF cosh = new(ComplexMath.Cosh) { Name = "cosh", Description = "Hyperbolic Cosine of x radians" };
+    internal static readonly CF coth = new(ComplexMath.Coth) { Name = "coth", Description = "Hyperbolic Cotangent of x radians" };
+    internal static readonly CF ln = new((param1)ComplexMath.Log) { Name = "ln", Description = "natural logarithm of x (base e)" };
 
-    
+    internal static readonly CF abs = new((Complex x) => (Complex)ComplexMath.Abs(x)) { Name = "abs", Description = "The absolute value of x" };
+    internal static readonly CF sign = new(ComplexMath.Sign) { Name = "sign", Description = "sign of x" };
+    internal static readonly CF conj = new(ComplexMath.Conj) { Name = "conj", Description = "conjugate of x" };
+    internal static readonly CF arg = new((Complex x) => (Complex)ComplexMath.Arg(x)) { Name = "arg", Description = "argument of x" };
+    internal static readonly CF re = new((Complex x) => (Complex)ComplexMath.Re(x)) { Name = "Re", Description = "Real part of x" };
+    internal static readonly CF im = new((Complex x) => (Complex)ComplexMath.Im(x)) { Name = "Im", Description = "Imaginary part of x" };
+    internal static readonly CF rand = new(() => (Complex)System.Random.Shared.Next()) { Name = "random", Description = "a randomly generated integer" };
+
+    internal static readonly CF remainder = new(wrapper(Math.IEEERemainder)) { Name = "remainder", Description = "the Remainder of x divided by y" };
+    internal static readonly CF floor = new(ComplexMath.Floor) { Name = "floor", Description = "x rounded downwards" };
+    internal static readonly CF round = new(ComplexMath.Round) { Name = "round", Description = "x rounded to the nearest integer" };
+    internal static readonly CF ceil = new(ComplexMath.Ceiling) { Name = "ceil", Description = "x rounded upwards" };
+    internal static readonly IFunction max = Max.Instance;
+    internal static readonly IFunction min = Min.Instance;
+    internal static readonly CF clamp = new(wrapper(Math.Clamp)) { Name = "clamp", Description = "no description" };
+    internal static readonly IFunction d = Differentiate.Instance;
+    internal static readonly IFunction sigma = SigmaSummation.Instance;
+    public static IReadonlyDataBank DataBank { get; } = new InternalDataBank();
     internal static readonly RuntimeFunction sqrt;
     internal static readonly RuntimeFunction cbrt;
     internal static readonly RuntimeFunction nrt;
-    internal static readonly CF rand = new(() => (Complex) System.Random.Shared.Next(), "rand", "a randomly generated integer");
-    
-    internal static readonly CF remainder = new((Complex x,Complex y) => wrapper(x,y,Math.IEEERemainder), "remiander", "the Remainder of x divided by y");
-    internal static readonly CF floor = new((Complex x) =>  wrapper(x,Math.Floor), "floor", "x rounded downwards");
-    internal static readonly CF round = new((Complex x) => wrapper(x,Math.Round), "round", "x rounded to the nearest integer");
-    internal static readonly CF ceil = new((Complex x) => wrapper(x,Math.Ceiling), "ceil", "x rounded upwards");
-    internal static readonly CF min = new((Complex x,Complex y) => wrapper(x,y,Math.Min), "min", "Minimum of x and y");
-    internal static readonly CF max = new((Complex x,Complex y) => wrapper(x,y,Math.Max), "max", "Maximum of x and y");
-    internal static readonly CF clamp = new((Complex x,Complex y,Complex z) => wrapper(x,y,z,Math.Clamp), "clamp", "no description");
-    
     internal static readonly RuntimeFunction deg;
     internal static readonly RuntimeFunction rad;
-    internal static readonly RuntimeFunction log;
-
+    internal static readonly FunctionOverload log;
+    internal static readonly RuntimeFunction exp;
+    public static IDataModel True => Bool.True;
+    public static IDataModel False => Bool.False;
     public static IDataModel Pi => pi;
     public static IDataModel E => e;
     public static IDataModel Sine => sin;
@@ -118,55 +125,50 @@ public class StaticDataBank
     public static IDataModel NthRoot => nrt;
     public static IDataModel Random => rand;
     public static IDataModel AbsoluteValue => abs;
-    //public static IDataModel Remainder => remainder;
-    //public static IDataModel Floor => floor;
-    //public static IDataModel Round => round;
-    //public static IDataModel Ceiling => ceil;
-    //public static IDataModel Minimum => min;
-    //public static IDataModel Maximum => max;
-    //public static IDataModel Clamp => clamp;
-    public static IReadonlyDataBank DataBank { get; } = new InternalDataBank();
-    
-        // do not use recursion on this   
+    public static IDataModel Remainder => remainder;
+    public static IDataModel Floor => floor;
+    public static IDataModel Round => round;
+    public static IDataModel Ceiling => ceil;
+    public static IDataModel Minimum => min;
+    public static IDataModel Maximum => max;
+    public static IDataModel Clamp => clamp;
+
     static StaticDataBank()
     {
-        var degreeParams = new RuntimeFunction.Parameter[] { new("x") };
-        var mul = new Number(1.0 / 180.0);
-        deg = new RuntimeFunction("deg", new Multiply(degreeParams[0], pi, mul), degreeParams);
-        var sqrtParams = new RuntimeFunction.Parameter[] { new("x") };
-        sqrt = new RuntimeFunction("sqrt",new Power(sqrtParams[0],new Number(0.5)), sqrtParams);
-        var cbrtParams = new RuntimeFunction.Parameter[] { new("x") };
-        cbrt = new RuntimeFunction("cbrt", new Power(cbrtParams[0], new Number(1.0/3.0)), cbrtParams);
-        var nrtParams = new RuntimeFunction.Parameter[] { new("x"),new("n") };
-        nrt = new RuntimeFunction("root", new Power(nrtParams[0],Divide.Create(new Number(1) , nrtParams[1])), nrtParams);
-        var radParams = new RuntimeFunction.Parameter[] { new("x") };
-        rad = new RuntimeFunction("rad", new Multiply(radParams[0], new Number(180.0),new Power(pi,new Number(-1))),radParams);
-        var logParams = new RuntimeFunction.Parameter[] { new("x"),new("y") };
-        log = new RuntimeFunction("log",
-            Divide.Create(new FunctionCall(ln, logParams[0]),new FunctionCall(ln, logParams[1]))
-            , logParams);
-        sin.SetDerivative(new FunctionCall( cos,sin.DerivativeParameter));
-        cos.SetDerivative(Negative.Create(new FunctionCall(sin,cos.DerivativeParameter)));
-        tan.SetDerivative(new Power(new FunctionCall(cos,tan.DerivativeParameter), new Number(-2)));
-        cot.SetDerivative(new Power(new FunctionCall(sin, cot.DerivativeParameter), new Number(-2)));
-        arcsin.SetDerivative(new Power(new Add(new Number(1),new Multiply(new Number(-1),arcsin.DerivativeParameter,arcsin.DerivativeParameter)) , new Number(-0.5)));
-        arccos.SetDerivative(Negative.Create( new Power(new Add(new Number(1), new Multiply(new Number(-1), arcsin.DerivativeParameter, arcsin.DerivativeParameter)), new Number(-0.5))));
-        arctan.SetDerivative(Divide.Create(new Number(1),new Add(new Number(1),new Power(arctan.DerivativeParameter,new Number(2)))));
-        arccot.SetDerivative(Negative.Create( Divide.Create(new Number(1),new Add(new Number(1),new Power(arctan.DerivativeParameter,new Number(2))))));
+        sqrt = new RuntimeFunction("sqrt", ["x"], "x^0.5");
+        cbrt = new RuntimeFunction("cbrt", ["x"], "x^(1/3)");
+        nrt = new RuntimeFunction("nrt", ["x", "a"], "x^(1/a)");
+        deg = new RuntimeFunction("deg", ["x"], "x * pi /180");
+        rad = new RuntimeFunction("rad", ["x"], "180x / pi");
+        log = new FunctionOverload("log",
+            [
+            new RuntimeFunction("log", ["x", "a"], "ln(x) / ln(a)"),
+            new RuntimeFunction("log", ["x"], "ln(x) / ln(10)")
+            ]);
+        exp = new RuntimeFunction("exp", ["x"], "e^x");
 
-        sinh.SetDerivative(new FunctionCall(cosh,sinh.DerivativeParameter));
-        cosh.SetDerivative(new FunctionCall(sinh, cosh.DerivativeParameter));
+        InternalDataBank._bank.AddRange([log, sqrt, cbrt, nrt,
+            deg, rad,exp]);
+        sin.SetDerivative(new RuntimeFunction("sin'", ["x"], "cos(x)"));
+        cos.SetDerivative(new RuntimeFunction("cos'", ["x"], "-sin(x)"));
+        tan.SetDerivative(new RuntimeFunction("tan'", ["x"], "cos(x)^(-2)"));
+        cot.SetDerivative(new RuntimeFunction("cot'", ["x"], "sin(x)^(-2)"));
+        arcsin.SetDerivative(new RuntimeFunction("arcsin'", ["x"], "(1-x^2)^(-0.5)"));
+        arccos.SetDerivative(new RuntimeFunction("arccos'", ["x"], "-(1-x^2)^(-0.5)"));
+        arctan.SetDerivative(new RuntimeFunction("arctan'", ["x"], "1/(1+x^2)"));
+        arccot.SetDerivative(new RuntimeFunction("arccot'", ["x"], "-1/(1+x^2)"));
 
-        ln.SetDerivative(new Power(ln.DerivativeParameter, new Number(-1)));
-        abs.SetDerivative(new FunctionCall(sign, abs.DerivativeParameter));
-        sign.SetDerivative(new Number(0));
+        sinh.SetDerivative(new RuntimeFunction("sinh'", ["x"], "cosh(x)"));
+        cosh.SetDerivative(new RuntimeFunction("cosh'", ["x"], "sinh(x)"));
 
-        sin.SetInverse(new FunctionCall(arcsin, sin.InverseParameter));
-        cos.SetInverse(new FunctionCall(arccos, cos.InverseParameter));
-        tan.SetInverse(new FunctionCall(arctan, tan.InverseParameter));
-        cot.SetInverse(new FunctionCall(arccot, cot.InverseParameter));
-        ln.SetInverse(new Power(e,ln.InverseParameter));       
-        
+        ln.SetDerivative(new RuntimeFunction("ln'", ["x"], "1/x"));
+        abs.SetDerivative(new RuntimeFunction("abs'", ["x"], "sign(x)"));
+        sign.SetDerivative(new RuntimeFunction("sign'", ["x"], "0"));
+        sin.SetInverse(arcsin);
+        cos.SetInverse(arccos);
+        tan.SetInverse(arctan);
+        cot.SetInverse(arccot);
+        ln.SetInverse(exp);
     }
 }
 

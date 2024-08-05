@@ -1,15 +1,16 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
-namespace SharpCalc.DataModels;
+namespace SharpCalc.Components;
 /// <summary>
 /// used instead of <see cref="string.Substring(int, int)"/> to avoid unneccesary character copying
 /// </summary>
-public struct StringSegment : IComparable<StringSegment>
+internal readonly struct StringSegment : IComparable<StringSegment>
 {
-    public string Value;
-    int Start;
-    int End;
+    public readonly string Value;
+    public readonly int Start;
+    public readonly int End;
     public readonly char this[int index]
     {
         get
@@ -39,7 +40,7 @@ public struct StringSegment : IComparable<StringSegment>
         var compareIntersect = string.Compare(Value, Start, other.Value, other.Start, Math.Min(Length, other.Length));
 
         if (compareIntersect == 0)
-        {
+        {           
             return Length.CompareTo(other.Length);
         }
         else return compareIntersect;
@@ -58,14 +59,14 @@ public struct StringSegment : IComparable<StringSegment>
 }
 public enum Symbol
 {
-    Null, Plus, Minus, Cross, Slash, Equal, Assign, Greater, GreaterOrEqual, Smaller, SmallerOrEqual, NonEqual, Power, Comma, Point, ExclamationMark,
-    Invisible_FunctionCall
+    Null, Plus, Minus, Cross, Slash, Equal, Assign, Greater, GreaterOrEqual, Lesser, LesserEqual, NonEqual, Power, Comma, Point, ExclamationMark,
+    Invisible_FunctionCall, Tilde, Pipe, Ampersand, Colon,Implies
 }
 public static class SymbolIO
 {
     private static readonly string[] Out =
     {
-        string.Empty,"+","-","*","/","==","=",">",">=","<","<=","!=","^",",",".","!",string.Empty
+        string.Empty,"+","-","*","/","==","=",">",">=","<","<=","!=","^",",",".","!",string.Empty, "~","|","&",":","=>"
     };
 
     private static readonly SortedDictionary<StringSegment, Symbol> In = new()
@@ -81,14 +82,18 @@ public static class SymbolIO
         { "==",Symbol.Equal },
         { "!=",Symbol.NonEqual },
         { "=!",Symbol.NonEqual },
-        { "<=",Symbol.SmallerOrEqual },
-        { "=<",Symbol.SmallerOrEqual },
-        { ">=",Symbol.GreaterOrEqual },
-        { "=>",Symbol.GreaterOrEqual },
+        { "<=",Symbol.LesserEqual },
+        { "=<",Symbol.LesserEqual },
+        { ">=",Symbol.GreaterOrEqual },        
         { "=",Symbol.Assign },
         { ">",Symbol.Greater },
-        { "<",Symbol.Smaller },
+        { "<",Symbol.Lesser },
         { "!",Symbol.ExclamationMark },
+        {"~",Symbol.Tilde },
+        { "|",Symbol.Pipe },
+        {"&",Symbol.Ampersand },
+        { ":",Symbol.Colon },
+        {"=>",Symbol.Implies }
     };
     public static string Represent(Symbol s)
     {
