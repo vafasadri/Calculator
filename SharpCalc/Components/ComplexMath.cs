@@ -2,10 +2,11 @@
 
 namespace SharpCalc.Components
 {
-    public readonly struct Complex
+    public struct Complex
     {
-        public readonly double a;
-        public readonly double b;
+        public double a;
+        public double b;
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public Complex(double real)
         {
             a = 0;
@@ -123,7 +124,8 @@ namespace SharpCalc.Components
         }      
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Complex operator *(in Complex me, in Complex other)
-        {
+        {           
+            if (me.a == 0 && other.a == 0) return new Complex(0, me.b * other.b);    
             // (ai + b)(ci + d) = -ac + adi + bci + bd
             // = (ad + bc)i + (bd - ac)
             double real = (me.b * other.b) - (me.a * other.a);

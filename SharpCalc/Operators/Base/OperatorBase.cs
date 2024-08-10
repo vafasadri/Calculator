@@ -22,13 +22,16 @@ internal abstract class OperatorBase : IMathNode
     /// Puts parentheses around a node if necessary
     /// </summary>
     /// <param name="w"></param>
-    /// <returns></returns>
+    /// <returns></returns>   
+    protected bool NeedsWrapping(Complex n)
+    {
+        return (n.a != 0 && n.b != 0) || n.a < 0 || n.b < 0;
+    }
     protected string WrapMember(IMathNode w)
     {
         if (w is OperatorBase o && o.Metadata.Precedence >= Metadata.Precedence || 
-            (w is Number n && ((n.Value.a != 0 && n.Value.b  != 0) || n.Value.a < 0 || n.Value.b < 0) && Metadata.Precedence < Add.Metadata.Precedence))
+            (w is Number n && NeedsWrapping(n.Value) && Metadata.Precedence < Add.Metadata.Precedence))
             return $"({w.Render()})";
-
         else return w.Render();
     }
 }

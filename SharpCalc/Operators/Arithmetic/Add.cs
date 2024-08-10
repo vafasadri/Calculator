@@ -10,8 +10,8 @@ internal class Add : ScalarOperatorGroup
         new AddNumberNumber(),
             new AddAnyAny(),
             new AddNumberAny(),
-            new AddMultiplyAny(),
-            //new AddMultiplyMultiply(),
+            new AddMultiplyAny(),            
+            new AddMultiplyMultiply(),
             ])
     {
         Name = "Addition",
@@ -20,7 +20,7 @@ internal class Add : ScalarOperatorGroup
         FullCreator = (factors) => new Add(factors.Cast<Scalar>()),       
         UnpackSelfType = true,
         EmptyValue = new Number(0),
-        IsLeftOptional = true,      
+        IsLeftOptional = true,        
     };
           
     public override string Render()
@@ -163,8 +163,7 @@ file class AddMultiplyMultiply : ISimplification<Multiply, Multiply, Add>
     public  IMathNode? Simplify(Multiply left, Multiply right)
     {
         var (leftDistinct, intersect, rightDistinct) = left.Factors.Cast<Scalar>().Intersection<Scalar>(right.Factors.Cast<Scalar>(), Equator.Instance);
-        if (!intersect.Any()) return null;
-
+        if (!intersect.Any()) return null;       
         var add = new Add([new Multiply(leftDistinct), new Multiply(rightDistinct)]);
         return new Multiply(intersect.Append(add));
     }

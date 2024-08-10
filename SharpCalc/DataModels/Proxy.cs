@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace SharpCalc.DataModels
 {
-    internal abstract class Proxy : IDataModel
+    public abstract class Proxy : IDataModel
     {
         public IMathNode? Value { get; set; }
         public string Name { get; }
@@ -22,7 +22,7 @@ namespace SharpCalc.DataModels
         {
             return $"{Name} =>  {Value?.Render() ?? "?"}";
         }
-        IMathNode? IMathNode.SimplifyInternal()
+        public virtual IMathNode? SimplifyInternal()
         {
             return Value;
         }

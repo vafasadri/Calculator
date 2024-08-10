@@ -63,10 +63,12 @@ internal class Multiply : ScalarOperatorGroup
         if (numberfactor == -1) builder.Append('-');
         else if (numberfactor != 1 || numeratorIndex == 0)
         {
-            var simple = (numberfactor.IsReal() && numberfactor.b > 0) && (numeratorIndex == 0 && !char.IsDigit(numerator[0][0]));
-            if (!simple) builder.Append('(');
-            builder.Append(numberfactor);
-            if (!simple) builder.Append(')');
+            var factorString = numberfactor.ToString();
+            
+            var wrap = factorString.Contains('+') || factorString.Contains(' ') || (char.IsLetter(factorString.Last()) && (numeratorIndex != 0 && char.IsLetter(numerator[0][0]))) || (char.IsDigit(factorString.Last()) && (numeratorIndex != 0 && char.IsDigit(numerator[0][0])));
+            if (wrap) builder.Append('(');
+            builder.Append(factorString);
+            if (wrap) builder.Append(')');
         }
         builder.AppendJoin(" * ", numerator.Take(numeratorIndex));
         if (denominatorIndex != 0)
@@ -180,11 +182,8 @@ file class MultiplyAnyAny : ISimplification<Scalar, Scalar, Multiply>
     public IMathNode? Simplify(Scalar left, Scalar right)
     {
         if (!Equator.Equals(left, right)) return null;
-
-        var add = new Add();
-        add.AddOperand(new Number(2));
-        return new Power(left, add);
-
+        
+        return new Power(left, new Number(2));
     }
 }
 
@@ -202,13 +201,8 @@ file class MultiplyPowerAny : ISimplification<Power, Scalar, Multiply>
     public IMathNode? Simplify(Power left, Scalar right)
     {
         if (!Equator.Equals(left.Base, right)) return null;
-
-        if (left.Exponent is Add { IsSealed: false } add)
-        {
-            add.AddOperand(new Number(1));
-            return left;
-        }
-        else return new Power(left.Base,
+        
+        return new Power(left.Base,
             new Add([left.Exponent, new Number(1)]));
     }
 }

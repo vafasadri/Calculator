@@ -28,34 +28,10 @@ internal class Power : ScalarSingleOperator
 		return $"{WrapMember(Base)}^{WrapMember(Exponent)}";
 	}		
 	public override Scalar Differentiate()
-	{
-		//var e = Exponent.ContainsVariable(x);
-		//var b = Base.ContainsVariable(x);
-		//if(e & b)
-		//{
-
-		//	throw new NotImplementedException();
-		//}
-		//else if (b)
-		//{
-		//	var exp = new Add(Exponent, new Number(-1));
-		//	var der = Base.Derivative(x);
-		//	return new Multiply(new Power(Base, exp), der,Exponent); 
-		//}
-		//      else
-		//      {
-		//	var ln = new FunctionCall(StaticDataBank.ln, Base);
-		//	var der = Exponent.Derivative(x);
-		//	return new Multiply(der,ln,this);
-		//      }
-		//      throw new NotImplementedException();
-
-		var mul = new Multiply();
-		mul.AddOperand(this);
-		var realExp = new Multiply([Exponent, new FunctionCall(StaticDataBank.ln, Base)]);
-		mul.AddOperand(realExp.Differentiate());
-		mul.Seal();
-		return mul;
+	{				
+		var realExponent = new Multiply([Exponent, new FunctionCall(StaticDataBank.ln, Base)]);
+		
+		return new Multiply([this,realExponent.Differentiate()]);
 	}
 
     public override Scalar Reverse(Scalar factor, Scalar target)

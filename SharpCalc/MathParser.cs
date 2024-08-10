@@ -14,11 +14,20 @@ public class MathParser
     internal readonly DataBank dataManager;
     internal readonly Concluder concluder;
     private readonly static LinkedList<object> CreationSyntax = LexicalAnalyzer.ToLexicalSeries("{*} : {&}", true);
-
     public MathParser()
     {
         dataManager = new();
         concluder = new(dataManager);
+    }
+    public IEnvironmentVariable RegisterEnvironment(string name)
+    {
+        var variable = new EnivronmentVariable(name);
+
+        if (dataManager.AddData(variable))
+        {
+            return variable;
+        }
+        else throw new Exception();
     }
     // string -> lexical series -> operator objects -> simplification
     public IMathNode Run(string value, out bool printInDetails)

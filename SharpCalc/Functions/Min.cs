@@ -47,14 +47,14 @@ internal class Min : IFunction
     }
     public Complex RunFast(ReadOnlySpan<Complex> paramlist)
     {
-        var max = paramlist[0];
-        if (!max.IsReal()) throw new CustomError("Cannot compare two complex numbers");
+        var min = paramlist[0];
+        if (!min.IsReal()) throw new CustomError("Cannot compare two complex numbers");
         foreach (var item in paramlist)
         {
             if (!item.IsReal()) throw new CustomError("Cannot compare two complex numbers");
-            if (item.b > max.b) max = item;
+            if (item.b < min.b) min = item;
         }
-        return max;
+        return min;
     }
     public string Print()
     {

@@ -40,7 +40,7 @@ internal class Variable : Proxy, Scalar
     }
     
     bool Scalar.ContainsVariable(Variable variable) => Equator.Equals(this,variable);
-    public Complex ComputeNumerically()
+    public virtual Complex ComputeNumerically()
     {
         if (Value != null)
         {
@@ -48,7 +48,6 @@ internal class Variable : Proxy, Scalar
         }
         else throw new Exceptions.CustomError($"Variable with unknown value: {Name}");
     }
-
     
     public Variable(string name) : base(name)
     {      
