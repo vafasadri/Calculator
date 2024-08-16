@@ -23,8 +23,8 @@ namespace SharpCalc.DataModels
 
         bool MatchesLeft(ISimplification simplification, (ListDictionary left, ListDictionary right) slot, Type? type)
         {
-            if (!AssociatesLeft ^ type == null) throw new CustomError("wtf");
             if (!AssociatesLeft && type == null) return true;
+            if (!AssociatesLeft ^ type == null) throw new ArgumentNullException(nameof(type));
             var cache = slot.left;
             var z = cache[type];
             if (z != null)
@@ -37,8 +37,8 @@ namespace SharpCalc.DataModels
         }
         bool MatchesRight(ISimplification simplification, (ListDictionary left, ListDictionary right) slot, Type? type)
         {
-            if (!AssociatesRight ^ type == null) throw new CustomError("wtf");
             if (!AssociatesRight && type == null) return true;
+            if (!AssociatesRight ^ type == null) throw new ArgumentNullException(nameof(type));    
             var cache = slot.right;
             var z = cache[type];
             if (z != null)
@@ -101,8 +101,8 @@ namespace SharpCalc.DataModels
         }
         public OperatorMetadata(Type Operator, IReadOnlyList<ISimplification> simplifications)
         {
-            if (!Operator.IsSubclassOf(typeof(OperatorBase))) throw new Exceptions.CustomError("Type must derive from OperatorBase");
-            if (simplifications.Any(n => n.OperationBetween != Operator)) throw new Exceptions.CustomError("All simplifications must have this type as their OperationBetween property");
+            if (!Operator.IsSubclassOf(typeof(OperatorBase))) throw new ArgumentException("Type must derive from OperatorBase",nameof(Operator));
+            if (simplifications.Any(n => n.OperationBetween != Operator)) throw new ArgumentException($"All simplifications must have this type as their {nameof(ISimplification.OperationBetween)} property",nameof(simplifications));
             this.Operator = Operator;
             PairCache = new();
             Simplifications = simplifications;
@@ -152,8 +152,7 @@ namespace SharpCalc.DataModels
 
         public SingleOperatorBase CreateInstance(IMathNode? leftOperand, IMathNode? rightOperand)
         {
-            if ((AssociatesLeft && leftOperand == null) ||
-            (AssociatesRight && rightOperand == null)) throw new ExpectingError("an operand", $"in operator {Name}", null);
+            if ((AssociatesLeft && leftOperand == null) || (AssociatesRight && rightOperand == null)) throw new ExpectingError("an operand", $"in operator {Name}", null);
             return Creator(leftOperand, rightOperand);
         }
         public SingleOperatorMetadata(Type Operator, IReadOnlyList<ISimplification> Simplifications) : base(Operator, Simplifications)
